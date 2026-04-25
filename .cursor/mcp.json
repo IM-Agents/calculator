@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "figma": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Users\\DELL\\AppData\\Local\\npm-cache\\_npx\\350afd3a3c613f0b\\node_modules\\figma-developer-mcp\\dist\\bin.js",
+        "--stdio"
+      ],
+      "env": {
+        "FIGMA_API_KEY": "figd_5cXAiPrHgUXtRunb_wZaXGejcfQ8jnnhgL5QKotI"
+      },
+      "disabled": false
+    }
+  }
+}
