@@ -53,7 +53,7 @@ export default function App() {
       if (event.key === ".") return handleInput(".");
       if (event.key === "Enter" || event.key === "=") return handleInput("=");
       if (event.key === "Escape") return handleInput("AC");
-      if (["+", "-", "*", "/"].includes(event.key)) return handleInput(event.key);
+      if (["+", "-", "*", "/", "^", "%"].includes(event.key)) return handleInput(event.key);
     };
 
     window.addEventListener("keydown", onKeyDown);

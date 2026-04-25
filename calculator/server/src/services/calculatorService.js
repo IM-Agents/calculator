@@ -25,7 +25,7 @@ export const saveHistory = ({ expression, result }) => {
   if (historyStore.length > LIMIT) {
     historyStore.length = LIMIT;
   }
-  return historyStore[0];
+  return { ...historyStore[0] };
 };
 
-export const getHistory = () => historyStore;
+export const getHistory = () => historyStore.map((item) => ({ ...item }));

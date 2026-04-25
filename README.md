@@ -89,3 +89,8 @@ If `.js` files are added later, apply logging updates at that point.
 - Keep dependencies minimal and essential only.
 - Avoid unsafe `eval`; use controlled parsing/evaluation logic.
 - Backend should be modular even if initial persistence is in-memory.
+
+## Backend Environment Variables
+
+- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed frontend origins (for example, `https://app.example.com,https://admin.example.com`).
+- `ALLOWED_ORIGINS`: fallback variable name with the same format; used when `CORS_ALLOWED_ORIGINS` is not set.

@@ -4,6 +4,8 @@ import {
   validateHistoryBody
 } from "../validators/calculateValidator.js";
 
+const clientErrorMessages = new Set(["Cannot divide by zero.", "Unsupported operator."]);
+
 export const calculateResult = (req, res) => {
   const validationError = validateCalculationBody(req.body);
   if (validationError) {
@@ -15,7 +17,10 @@ export const calculateResult = (req, res) => {
     const result = calculate(left, operator, right);
     return res.status(200).json({ result });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    if (clientErrorMessages.has(error.message)) {
+      return res.status(400).json({ error: error.message });
+    }
+    return res.status(500).json({ error: "Internal server error." });
   }
 };
 

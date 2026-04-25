@@ -114,10 +114,40 @@ export const useCalculator = () => {
 
   const toggleSign = () => runUnary("negate");
 
-  const memoryAdd = () => setMemory((prev) => prev + Number(display));
-  const memorySubtract = () => setMemory((prev) => prev - Number(display));
+  const updateMemory = (operation) => {
+    clearError();
+    const displayValue = Number(display);
+    if (!Number.isFinite(displayValue)) {
+      setError("Cannot use a non-finite value in memory.");
+      return;
+    }
+
+    setMemory((prev) => {
+      const next = operation(prev, displayValue);
+      if (!Number.isFinite(next)) {
+        setError("Memory value is out of range.");
+        return prev;
+      }
+      return next;
+    });
+  };
+
+  const memoryAdd = () => updateMemory((prev, value) => prev + value);
+  const memorySubtract = () => updateMemory((prev, value) => prev - value);
   const memoryRecall = () => {
-    setDisplay(formatResult(memory));
+    if (!Number.isFinite(memory)) {
+      setError("Cannot recall an invalid memory value.");
+      return;
+    }
+
+    try {
+      setDisplay(formatResult(memory));
+      clearError();
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+
     setOverwrite(true);
   };
   const memoryClear = () => setMemory(0);
