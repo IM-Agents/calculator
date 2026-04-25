@@ -1,0 +1,138 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  line-height: 1.4;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.top-header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.top-header button {
+  border: 1px solid #e2e8f0;
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+}
+
+.content-area {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(220px, 320px);
+  gap: 1rem;
+  padding: 1rem;
+  justify-content: center;
+}
+
+.calculator-card,
+.history-panel {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  padding: 1rem;
+}
+
+.display-panel {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-radius: 10px;
+  padding: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.display-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.display-value {
+  font-size: 2rem;
+  text-align: right;
+  margin: 0.4rem 0;
+  word-break: break-all;
+}
+
+.display-error {
+  min-height: 1.2rem;
+  font-size: 0.85rem;
+  color: #fca5a5;
+}
+
+.keypad {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.keypad-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.key {
+  border: none;
+  border-radius: 8px;
+  background: #e2e8f0;
+  padding: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.key-equals {
+  background: #3b82f6;
+  color: white;
+}
+
+.history-panel h2 {
+  margin: 0 0 0.6rem;
+}
+
+.history-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.history-panel li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 860px) {
+  .content-area {
+    grid-template-columns: 1fr;
+  }
+}
