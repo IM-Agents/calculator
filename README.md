@@ -59,17 +59,21 @@ calculator/
 - `docs/development-plan.md`
 - `docs/code-structure.md`
 - `docs/raid-log.md`
-- `design doc/figma-tree.md` (page-wise design structure)
+- `doc/figma-tree.md` (page-wise design structure)
+- `page wise design doc/figma-tree.md` (page-wise design structure)
 
 ## Design Documentation
 
 This repository includes a page-wise design tree document for mapping screens/sections into a Figma-friendly hierarchy:
 
-- `design doc/figma-tree.md`
+- `doc/figma-tree.md`
+- `page wise design doc/figma-tree.md`
 
 ## JavaScript Logging Note
 
 Requested `console.log` insertion in all `.js` files could not be applied because there are currently no `.js` files in this repository.
+
+If `.js` files are added later, apply logging updates at that point.
 
 ## Suggested Development Flow
 
