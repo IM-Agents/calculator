@@ -1,0 +1,51 @@
+# Recommended Folder Structure
+
+```text
+calculator/
+  frontend/
+    src/
+      components/
+        CalculatorShell/
+        DisplayPanel/
+        ButtonGrid/
+        HistoryPanel/
+        ModeToggle/
+      hooks/
+        useCalculator.js
+      services/
+        calculatorApi.js
+      utils/
+        inputSanitizer.js
+        keyboardMap.js
+      styles/
+      App.jsx
+      main.jsx
+    package.json
+  backend/
+    src/
+      routes/
+        calculator.routes.js
+      controllers/
+        calculator.controller.js
+      services/
+        calculator.service.js
+      utils/
+        evaluator.js
+        mathHelpers.js
+      validators/
+        calculation.validator.js
+      app.js
+      server.js
+    package.json
+  docs/
+    README.md
+    01-project-description.md
+    02-functional-specification.md
+    03-technical-architecture.md
+    04-database-schema.md
+    05-api-specification.md
+    06-development-task-breakdown.md
+    07-clickup-card-description.md
+    08-open-questions-and-assumptions.md
+    09-recommended-folder-structure.md
+```
