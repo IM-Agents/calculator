@@ -1,47 +1,54 @@
 # Project Brief - Calculator Web Application
 
-## Goal
-Build a responsive calculator web application using React and Node.js that supports both standard and scientific calculations with a smooth, low-latency user experience.
+## Overview
+Build a fully functional calculator web application using **React** for the frontend and **Node.js** for the backend. The product must support both standard and scientific calculations while keeping the user experience fast, responsive, and intuitive.
 
-## Objectives
-- Provide a fast, intuitive calculator UI
-- Support basic and scientific operations
-- Keep external libraries minimal
-- Support keyboard and button input
-- Prevent crashes through robust validation and error handling
-
-## In Scope
-- Standard arithmetic operations
-- Percentage, square root, exponent, sign toggle
-- Trigonometric functions with degree/radian mode
-- Logarithmic functions (`log`, `ln`)
-- Constants (`π`, `e`)
-- Memory operations (`M+`, `M-`, `MR`, `MC`)
-- Last 10 calculations history panel
-- Keyboard support
-- Friendly error states
-- Responsive UI for mobile, tablet, and desktop
-- Node.js API for calculation and optional history persistence
-
-## Out of Scope (V1)
-- Graph plotting
-- Authentication or multi-user accounts
-- Cloud persistence
-- Theme switching
-- Clipboard helpers
+## Primary Objectives
+- Provide a fast and clean calculator UI
+- Support both basic and scientific calculations
+- Keep external dependencies minimal and essential only
+- Support both keyboard and button-based interaction
+- Deliver robust, user-friendly error handling
 
 ## Target Users
 - Students
 - Developers
-- General users
+- General users needing quick calculations
+
+## In Scope
+- Standard arithmetic: addition, subtraction, multiplication, division
+- Advanced operations: percentage, square root, exponent, sign toggle
+- Scientific functions: `sin`, `cos`, `tan`, `log`, `ln`
+- Constants: `π`, `e`
+- Memory functions: `M+`, `M-`, `MR`, `MC`
+- History panel with the last 10 calculations
+- Keyboard support for numbers, operators, Enter, and Backspace
+- Degree/Radian mode toggle
+- Friendly error states for invalid operations
+- Node.js calculation API and optional history persistence support
+- **Responsive UI for mobile, tablet, and desktop**
+
+## Out of Scope for V1
+- Graph plotting
+- User accounts/authentication
+- Multi-device sync
+- Theme toggle
+- Clipboard shortcuts
 
 ## Success Metrics
-- Instant perceived calculation response
-- Zero crashes on invalid inputs
-- Smooth mobile usability
-- Accurate scientific calculations across supported functions
+- Instant-feeling calculation response time
+- Zero crashes on invalid input
+- Smooth usability on mobile devices
+- Accurate scientific calculations across supported operations
 
-## Assumptions
-- V1 can store history in memory or localStorage, while backend persistence remains modular and optional.
-- Node.js backend is required for clean API-based architecture even if some logic can also run client-side.
-- Scientific precision will rely on JavaScript `Math` with controlled rounding/display handling.
+## Product Decisions
+- Use a controlled calculation engine rather than unsafe direct execution.
+- Keep history capped at 10 records.
+- Backend remains modular even if initial storage is in-memory.
+- Frontend owns interactive state; backend owns safe evaluation rules and optional persistence hooks.
+
+## Inputs Provided
+- Repo: `calculator`
+- Branch requested: `test_calcad`
+- Figma URL: not provided
+- Comment person: not provided

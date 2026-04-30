@@ -1,70 +1,73 @@
 # Development Plan
 
-## Milestone 1 - Foundation
+## Milestone 1 - Project Setup & UI Shell
 ### Deliverables
-- Frontend and backend project setup
-- Shared constants and input mappings
-- Basic responsive shell
-- Calculator display and keypad layout
+- Client/server workspace setup
+- Shared constants for operations and keys
+- Calculator shell with display and keypad
+- Base responsive layout
 
 ### Acceptance Criteria
-- App loads successfully
-- Responsive layout works on mobile/tablet/desktop
-- Core keypad is visible and usable
+- App starts locally without errors
+- Basic calculator layout is visible
+- Layout works across mobile, tablet, and desktop
 
-## Milestone 2 - Core Calculation Engine
+## Milestone 2 - Core Calculator Engine
 ### Deliverables
-- Controlled parser/evaluation service
+- Controlled tokenizer/parser/evaluator
 - Basic arithmetic support
-- Percentage, square root, exponent, sign toggle
-- Error handling for malformed input
+- Decimal handling and chained operations
+- Validation for malformed expressions
 
 ### Acceptance Criteria
-- Standard operations evaluate correctly
-- Division by zero and negative sqrt return friendly errors
-- Empty evaluation does not crash
+- `+`, `-`, `*`, `/` work reliably
+- Empty input does not crash
+- Repeated operators and invalid expressions are handled gracefully
 
-## Milestone 3 - Scientific Features
+## Milestone 3 - Scientific & Advanced Functions
 ### Deliverables
-- sin/cos/tan
-- log/ln
-- constants (`π`, `e`)
-- degree/radian mode switching
+- `%`, `√`, `^`, `±`
+- `sin`, `cos`, `tan`
+- `log`, `ln`
+- `π`, `e`
+- Degree/Radian mode toggle
 
 ### Acceptance Criteria
-- Scientific functions behave correctly in both angle modes
-- Mode state is clearly visible in UI
+- Trigonometric functions respect active angle mode
+- Negative square root is handled with a friendly error
+- Large values are formatted safely
 
-## Milestone 4 - Memory + History
+## Milestone 4 - Memory & History
 ### Deliverables
-- Memory operations
-- Last 10 history items
-- History API integration
+- `M+`, `M-`, `MR`, `MC`
+- Backend history service and API
+- History panel capped to last 10 entries
 
 ### Acceptance Criteria
-- Memory actions update correctly
-- History auto-updates after successful evaluations
-- History length never exceeds 10
+- Memory operations update correctly
+- History updates after successful calculations
+- History never exceeds 10 items
 
-## Milestone 5 - QA + Hardening
+## Milestone 5 - Keyboard, QA, and Hardening
 ### Deliverables
-- Unit tests for evaluator and helpers
-- Component tests for interaction flows
-- API tests for error scenarios
-- UX polish and accessibility review
+- Keyboard support for numbers/operators/Enter/Backspace
+- Unit tests for evaluator logic
+- Component/API tests for critical flows
+- Accessibility and UI polish
 
 ### Acceptance Criteria
-- No crashes on invalid input
-- Keyboard support works as specified
-- Critical flows covered by tests
+- Keyboard interaction matches PRD
+- Division by zero and invalid input never crash the app
+- Core flows are covered by tests
 
-## Suggested Backlog
-1. Setup client/server workspaces
-2. Implement display and keypad components
-3. Build tokenizer/parser/evaluator
-4. Wire API route to evaluator service
-5. Add mode toggle and scientific keys
-6. Add memory reducer/actions
-7. Add history storage + API retrieval
-8. Add tests for edge cases
-9. Final responsive and accessibility polish
+## Suggested Task Breakdown
+1. Setup monorepo or split client/server directories
+2. Build display, keypad, and history components
+3. Implement parser and evaluator service
+4. Wire `POST /api/calculate`
+5. Add degree/radian mode support
+6. Add scientific function keys
+7. Add memory state/actions
+8. Add history service + retrieval API
+9. Add clear-history behavior
+10. Add tests and responsive polish

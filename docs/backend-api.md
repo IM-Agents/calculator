@@ -1,13 +1,19 @@
-# Backend API
+# Backend API Specification
 
 ## Base URL
 `/api`
 
+## Purpose
+The backend provides safe expression evaluation and history management. It should be structured cleanly using controllers and services so future persistence upgrades remain straightforward.
+
+---
+
 ## 1. Evaluate Expression
 ### `POST /api/calculate`
-Evaluates a normalized calculator request.
 
-#### Request Body
+Safely evaluates a calculator expression using the selected angle mode.
+
+### Request Body
 ```json
 {
   "expression": "sin(90)+5^2",
@@ -15,19 +21,20 @@ Evaluates a normalized calculator request.
 }
 ```
 
-#### Success Response
+### Success Response
 ```json
 {
   "success": true,
   "data": {
     "expression": "sin(90)+5^2",
     "result": "26",
-    "angleMode": "DEG"
+    "angleMode": "DEG",
+    "timestamp": "2025-08-06T12:00:00.000Z"
   }
 }
 ```
 
-#### Error Response
+### Error Response
 ```json
 {
   "success": false,
@@ -38,11 +45,23 @@ Evaluates a normalized calculator request.
 }
 ```
 
-## 2. Get Calculation History
-### `GET /api/history`
-Returns the last 10 calculations.
+### Evaluation Rules
+- Support chained arithmetic operations
+- Support `%`, `√`, `^`, `±`
+- Support `sin`, `cos`, `tan`, `log`, `ln`
+- Support constants `π` and `e`
+- Respect `DEG` / `RAD` mode for trigonometric functions
+- Reject malformed or unsupported expressions safely
+- Avoid unsafe `eval`
 
-#### Success Response
+---
+
+## 2. Get History
+### `GET /api/history`
+
+Returns the most recent 10 successful calculations.
+
+### Success Response
 ```json
 {
   "success": true,
@@ -50,17 +69,20 @@ Returns the last 10 calculations.
     {
       "expression": "2+2",
       "result": "4",
-      "timestamp": "2026-04-25T10:00:00.000Z"
+      "timestamp": "2025-08-06T12:00:00.000Z"
     }
   ]
 }
 ```
 
+---
+
 ## 3. Clear History
 ### `DELETE /api/history`
-Clears stored history.
 
-#### Success Response
+Clears stored calculation history.
+
+### Success Response
 ```json
 {
   "success": true,
@@ -68,7 +90,10 @@ Clears stored history.
 }
 ```
 
-## Optional Future Endpoints
+---
+
+## Optional Future Memory Endpoints
+If memory state is later synchronized through the backend:
 - `POST /api/memory/add`
 - `POST /api/memory/subtract`
 - `GET /api/memory`
@@ -77,18 +102,20 @@ Clears stored history.
 ## Validation Rules
 - `expression` is required
 - `angleMode` must be `DEG` or `RAD`
-- Reject malformed function names or unsupported symbols
-- Reject expressions that exceed safe input length
+- Reject expressions over a safe size limit
+- Reject repeated unsupported tokens and malformed function calls
+- Handle empty input without crashing
 
 ## Error Codes
+- `EMPTY_EXPRESSION`
 - `INVALID_EXPRESSION`
 - `DIVISION_BY_ZERO`
 - `NEGATIVE_SQRT`
 - `UNSUPPORTED_OPERATION`
-- `EMPTY_EXPRESSION`
 - `OVERFLOW`
 
-## Controller/Service Notes
-- Controller should remain thin
-- Evaluator service owns parsing, conversion, and error mapping
-- History service should cap records at 10
+## Backend Structure Guidance
+- Controllers should stay thin
+- Evaluator service should own parsing and execution rules
+- History service should own last-10 cap logic
+- Validation layer should sanitize and normalize request payloads before evaluation

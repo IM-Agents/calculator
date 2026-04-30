@@ -1,27 +1,31 @@
 # Calculator Web Application
 
-A full-stack calculator web application built with **React 18**, **Node.js 24**, and **Express**. It supports standard arithmetic, scientific functions, memory operations, trigonometric and logarithmic calculations, keyboard input, and a calculation history panel.
+A full-stack calculator web application built with **React** (frontend) and **Node.js** (backend). It supports standard arithmetic, scientific functions, memory operations, keyboard input, and a rolling calculation history.
 
-## Tech Stack
+## Technologies / Stack
 
-- **Frontend:** React 18, Vite, CSS Modules or plain modular CSS
+- **Frontend:** React 18, Vite, JavaScript, responsive CSS
 - **Backend:** Node.js 24, Express
-- **Testing:** Vitest + React Testing Library, Supertest
 - **State Management:** Native React state/hooks
-- **Persistence:** In-memory by default, optional localStorage/frontend persistence and optional backend history persistence
+- **Calculation Engine:** Controlled parser/evaluation service (no unsafe `eval`)
+- **Persistence:** In-memory history on backend, with optional localStorage/history persistence later
+- **Testing (recommended):** Vitest, React Testing Library, Supertest
 
-## Key Product Capabilities
+## Product Summary
+
+This calculator is intended for students, developers, and general users who need fast everyday calculations plus scientific functions. The app must provide:
 
 - Basic arithmetic: `+`, `-`, `*`, `/`
-- Advanced operations: `%`, `√`, exponent, sign toggle
-- Scientific functions: `sin`, `cos`, `tan`, `log`, `ln`
+- Advanced operations: `%`, `√`, `^`, sign toggle `±`
+- Trigonometric functions: `sin`, `cos`, `tan`
+- Angle mode toggle: `DEG` / `RAD`
+- Logarithmic functions: `log`, `ln`
 - Constants: `π`, `e`
-- Memory operations: `M+`, `M-`, `MR`, `MC`
-- History panel with last 10 calculations
-- Keyboard and button interaction
-- Degree/Radian toggle
-- Friendly error handling for invalid operations
-- **Responsive UI for mobile, tablet, and desktop**
+- Memory functions: `M+`, `M-`, `MR`, `MC`
+- History panel showing the last 10 calculations
+- Button + keyboard interaction
+- Friendly error handling
+- **Responsive UI/design for mobile, tablet, and desktop**
 
 ## Recommended Project Structure
 
@@ -33,6 +37,7 @@ calculator/
 │   │   ├── hooks/
 │   │   ├── services/
 │   │   ├── utils/
+│   │   ├── constants/
 │   │   ├── styles/
 │   │   ├── App.jsx
 │   │   └── main.jsx
@@ -43,13 +48,15 @@ calculator/
 │   │   ├── routes/
 │   │   ├── services/
 │   │   ├── validators/
+│   │   ├── middleware/
 │   │   ├── utils/
-│   │   └── app.js
+│   │   ├── app.js
+│   │   └── server.js
 │   └── package.json
 └── docs/
 ```
 
-## Documentation
+## Documentation Files
 
 - `docs/project-brief.md`
 - `docs/architecture.md`
@@ -59,38 +66,19 @@ calculator/
 - `docs/development-plan.md`
 - `docs/code-structure.md`
 - `docs/raid-log.md`
-- `doc/figma-tree.md` (page-wise design structure)
-- `page wise design doc/figma-tree.md` (page-wise design structure)
+- `docs/figma-tree.md`
 
-## Design Documentation
+## Implementation Notes
 
-This repository includes a page-wise design tree document for mapping screens/sections into a Figma-friendly hierarchy:
-
-- `doc/figma-tree.md`
-- `page wise design doc/figma-tree.md`
-
-## JavaScript Logging Note
-
-Requested `console.log` insertion in all `.js` files could not be applied because there are currently no `.js` files in this repository.
-
-If `.js` files are added later, apply logging updates at that point.
-
-## Suggested Development Flow
-
-1. Build calculator UI shell and responsive layout
-2. Implement expression parsing/evaluation service
-3. Add scientific operations and angle mode handling
-4. Add history and memory state flows
-5. Expose backend calculation/history endpoints
-6. Add tests for edge cases and invalid inputs
-
-## Notes
-
+- Use a controlled calculation engine instead of unsafe expression execution.
 - Keep dependencies minimal and essential only.
-- Avoid unsafe `eval`; use controlled parsing/evaluation logic.
-- Backend should be modular even if initial persistence is in-memory.
+- Structure backend code with clear controller/service separation.
+- Prefer last-10 rolling history logic at the service layer.
+- If persistence is deferred in V1, keep storage abstraction ready so localStorage or DB can be added later.
 
-## Backend Environment Variables
+## Suggested Future Enhancements
 
-- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed frontend origins (for example, `https://app.example.com,https://admin.example.com`).
-- `ALLOWED_ORIGINS`: fallback variable name with the same format; used when `CORS_ALLOWED_ORIGINS` is not set.
+- Dark/light theme toggle
+- Copy result to clipboard
+- Persistent history
+- Graph plotting

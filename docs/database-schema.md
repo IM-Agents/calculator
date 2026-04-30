@@ -1,27 +1,34 @@
-# Database / Persistence Schema
+# Database / Persistence Notes
 
-## Persistence Strategy
-V1 can run without a database by using in-memory storage or localStorage for history. If backend persistence is enabled, use a lightweight relational structure.
+## V1 Recommendation
+A database is **not strictly required** for the first version because the PRD only requires the last 10 calculations and marks persistence as optional.
 
-## Recommended Table: `calculation_history`
+## V1 Storage Option
+- Use in-memory storage on the backend for calculation history
+- Keep only the latest 10 successful calculations
+
+## Suggested Future Table
+If persistent history is added later, use a simple table like:
 
 ```sql
 CREATE TABLE calculation_history (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   expression VARCHAR(255) NOT NULL,
   result VARCHAR(255) NOT NULL,
-  angle_mode ENUM('DEG', 'RAD') NOT NULL DEFAULT 'DEG',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  angle_mode ENUM('DEG', 'RAD') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-## Recommended Query: Insert Calculation
+## Query Examples
+
+### Insert History Row
 ```sql
 INSERT INTO calculation_history (expression, result, angle_mode)
 VALUES (?, ?, ?);
 ```
 
-## Recommended Query: Get Last 10 Calculations
+### Get Latest 10 Rows
 ```sql
 SELECT id, expression, result, angle_mode, created_at
 FROM calculation_history
@@ -29,12 +36,12 @@ ORDER BY created_at DESC
 LIMIT 10;
 ```
 
-## Recommended Query: Clear History
+### Clear History
 ```sql
 DELETE FROM calculation_history;
 ```
 
 ## Notes
-- `result` is stored as string to preserve formatted display output
-- No user table is required for V1
-- If MySQL is later adopted across the broader automation stack, this schema is compatible
+- Keep persistence optional in V1
+- If Nirav later wants durable history, localStorage or DB can be added without major frontend changes
+- No user/auth model is needed for the current scope

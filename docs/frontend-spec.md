@@ -3,83 +3,93 @@
 ## Frontend Stack
 - React 18
 - Vite
+- JavaScript
 - Plain CSS or CSS Modules
-- Native React hooks/state only
+- Native React state/hooks only
 
-## Core State
+## Core UX Goals
+- Fast interaction with no noticeable lag
+- Clean calculator layout with clear operator/number distinction
+- Easy usage on both keyboard and touch devices
+- **Responsive design across mobile, tablet, and desktop**
+
+## Core State Model
 - `expression: string`
 - `displayValue: string`
 - `memoryValue: number`
-- `history: Array<{ expression, result, timestamp }>`
+- `history: Array<{ expression: string; result: string; timestamp: string }>`
 - `angleMode: 'DEG' | 'RAD'`
 - `error: string | null`
 
 ## Component Breakdown
+
 ### `CalculatorShell`
-- Main responsive container
-- Places display on top
-- Uses side history panel on wide screens and bottom panel on small screens
+- Main layout wrapper
+- Keeps display at the top
+- Renders keypad and history panel
+- Uses side-by-side layout on wide screens and stacked layout on small screens
 
 ### `DisplayPanel`
-- Shows active expression
-- Shows result or error state
-- Supports large readable digits
+- Shows current expression
+- Shows evaluated result or active error message
+- Supports readable large digits and overflow-safe formatting
 
 ### `ButtonGrid`
-- Number keys
-- Operators
-- Scientific keys
-- Memory keys
-- Clear/backspace/evaluate actions
-- Distinct styling for operators vs numbers
-
-### `HistoryPanel`
-- Displays last 10 calculations
-- Shows expression and result
-- Scrollable if needed
-- Auto-updates after every valid calculation
+- Number buttons `0-9`
+- Decimal point button
+- Operator buttons `+ - × ÷`
+- Scientific buttons: `%`, `√`, `^`, `±`, `sin`, `cos`, `tan`, `log`, `ln`, `π`, `e`
+- Utility buttons: clear, backspace, equals
+- Memory buttons: `M+`, `M-`, `MR`, `MC`
 
 ### `ModeToggle`
 - Toggle between degree and radian mode
-- Clearly highlights active mode
+- Highlights the currently active mode
 
-## Interaction Requirements
-- Support click and keyboard input
-- Enter triggers evaluation
-- Backspace removes last input
-- Ignore unsupported keypresses
+### `HistoryPanel`
+- Displays the last 10 successful calculations
+- Shows both expression and final result
+- Updates automatically after each successful calculation
+- Appears beside the calculator on desktop and below it on smaller screens
+
+## Interaction Rules
+- Accept both mouse/touch clicks and keyboard input
+- `Enter` triggers evaluation
+- `Backspace` removes the last character or token as designed
+- Ignore unsupported keys safely
 - Prevent multiple decimal points in the same number token
-- Normalize repeated operators where possible
+- Normalize or reject repeated operators depending on context
+- Empty input evaluation should not crash the app
 
-## Responsive UX Requirements
-The UI must be **responsive across mobile, tablet, and desktop**.
+## Accessibility Requirements
+- Keyboard navigation for all interactive controls
+- Visible focus states
+- Adequate color contrast
+- ARIA labels for scientific and memory controls
+- Clear accessible error presentation
+
+## Responsive Requirements
 
 ### Mobile
-- Full-width layout
-- History panel below keypad
+- Full-width calculator
 - Large tap targets
+- History panel below keypad
 
 ### Tablet
-- Wider keypad spacing
-- Display area scaled for readability
+- Increased spacing
+- Balanced display and keypad proportions
 
 ### Desktop
-- Two-column layout when space allows
-- History panel visible beside calculator
+- Wider layout with optional side history panel
+- Stable alignment for scientific keypad sections
 
-## Accessibility
-- Tab navigation for buttons
-- Visible focus states
-- Sufficient contrast ratio
-- ARIA labels for scientific and memory buttons
-- Errors announced accessibly where practical
+## Frontend Service Calls
+- `POST /api/calculate`
+- `GET /api/history`
+- `DELETE /api/history`
 
-## Frontend Services
-- `calculatorApi.evaluate(payload)`
-- `calculatorApi.getHistory()`
-- `calculatorApi.clearHistory()`
-
-## Validation Rules
-- Block empty evaluation requests
-- Prevent malformed consecutive operators except unary minus handling
-- Disable impossible actions when appropriate
+## Frontend Validation Responsibilities
+- Prevent obviously malformed input where possible
+- Preserve a stable and readable expression string
+- Surface backend validation messages in a user-friendly format
+- Keep the UI responsive even when backend returns an error

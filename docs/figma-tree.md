@@ -1,35 +1,29 @@
-# Figma Navigation Tree — Calculator App (Responsive)
+# Figma / Screen Structure
 
-**File Key:** `efb6D9WRrFaSemoXuJOMxy`  
-**Last Modified:** 2026-04-25T05:37:17Z  
-**Prototype Base URL:** https://www.figma.com/design/efb6D9WRrFaSemoXuJOMxy
+No Figma URL was provided, so this is a PRD-based page/component tree.
 
----
+## Screen Tree
 
-## Summary
+### Calculator App
+- App Shell
+  - Header / Title Area
+  - Display Section
+    - Current Expression
+    - Result / Error Display
+    - Angle Mode Indicator
+  - Calculator Main Area
+    - Number Keypad
+    - Operator Keypad
+    - Scientific Keypad
+    - Memory Controls
+    - Utility Controls (clear, backspace, equals)
+  - History Panel
+    - History Title
+    - Last 10 Calculation Items
+    - Expression Row
+    - Result Row
 
-| Metric | Count |
-|--------|-------|
-| Total pages | 2 |
-| Main pages | 2 |
-| Overlays | 0 |
-| Modals | 0 |
-| Dialogs | 0 |
-| Entry page | **Content Area** |
-
----
-
-## Navigation Tree
-
-```
-# Calculator App (Responsive)
-
-[ENTRY] Content Area
-│  https://www.figma.com/design/efb6D9WRrFaSemoXuJOMxy?node-id=610-2429
-│
-
-Top Header navigation
-│  https://www.figma.com/design/efb6D9WRrFaSemoXuJOMxy?node-id=610-2463
-│
-
-```
+## Responsive Notes
+- Desktop: calculator and history shown side-by-side
+- Tablet: balanced stacked or semi-split layout
+- Mobile: history panel below keypad

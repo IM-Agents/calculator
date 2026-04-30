@@ -1,59 +1,48 @@
 # Architecture
 
-## Overview
-The application uses a split frontend/backend architecture:
+## High-Level Architecture
+This project uses a simple full-stack architecture:
 
-- **React frontend** for display, user interaction, input handling, state management, and rendering
-- **Node.js + Express backend** for safe calculation requests, validation, optional history persistence, and future extensibility
+- **React frontend** for rendering the calculator UI, handling keyboard/button input, maintaining interactive state, and showing history/mode state.
+- **Node.js + Express backend** for safe expression evaluation and optional history persistence.
 
-## High-Level Flow
-1. User enters input via keyboard or button click
-2. React updates expression state in real time
-3. On evaluation, frontend sends a normalized request to backend
-4. Backend validates payload and evaluates expression using controlled math logic
-5. Backend returns result or user-friendly error
-6. Frontend updates display, memory state, and history panel
+## Frontend Responsibilities
+- Capture and normalize user input
+- Manage expression, display, angle mode, history view, and memory state
+- Render responsive UI for **mobile, tablet, and desktop**
+- Display friendly validation and runtime errors
+- Call backend evaluation/history endpoints
 
-## Frontend Modules
-- `CalculatorShell`: page layout
-- `DisplayPanel`: current expression/result/error state
-- `ButtonGrid`: calculator keys
-- `HistoryPanel`: last 10 calculations
-- `ModeToggle`: deg/rad switch
-- `useCalculator`: main state and interaction logic
-- `keyboardMap`: keyboard-to-action translation
+## Backend Responsibilities
+- Validate incoming requests
+- Safely parse and evaluate expressions
+- Enforce scientific/math operation rules
+- Manage rolling history records (max 10)
+- Return structured success/error responses
 
-## Backend Modules
-- `routes/calcRoutes.js`: API route definitions
-- `controllers/calcController.js`: request/response handling
-- `services/evaluatorService.js`: expression/function evaluation
-- `services/historyService.js`: bounded history management
-- `validators/calcValidator.js`: request validation and sanitization
-- `utils/mathHelpers.js`: angle conversion, precision normalization, error mapping
+## Recommended Request Flow
+1. User enters expression from keypad or keyboard
+2. Frontend normalizes expression and selected angle mode
+3. Frontend calls `POST /api/calculate`
+4. Backend validates and evaluates safely
+5. Backend returns result or structured error
+6. Frontend updates display and history panel
 
-## Design Principles
-- Minimal dependency footprint
-- No unsafe `eval`
-- Clear separation of concerns
-- Predictable error responses
-- Easy extension for persistence/theme/future scientific modes
+## Key Design Principles
+- No unsafe direct expression execution
+- Minimal dependencies
+- Clean separation between UI state and calculation logic
+- Modular backend services for maintainability and future persistence
 
-## Suggested API Responsibility Split
-### Frontend
-- Temporary input buffering
-- Button/keyboard handling
-- Memory state display
-- Visual mode state
-- Rendering history
+## Persistence Strategy
+### V1
+- History may be stored in memory on the backend
+- Frontend can optionally cache history locally for UX continuity
 
-### Backend
-- Expression validation
-- Scientific function evaluation
-- Edge-case handling
-- History creation/optional persistence
-- Future audit/logging hooks
+### Future
+- Introduce persistent storage adapter without changing API contract
 
-## Error Handling Strategy
-- Backend returns structured errors with machine code + friendly message
-- Frontend shows readable feedback without crashing the app
-- Invalid operations do not corrupt current state
+## Risks
+- Scientific expression parsing complexity
+- Floating-point precision quirks in JavaScript math
+- UX confusion around `%`, `±`, and exponent behavior if not defined clearly

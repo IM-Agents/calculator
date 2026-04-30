@@ -1,23 +1,29 @@
 # RAID Log
 
 ## Risks
-- Building scientific evaluation without unsafe `eval` may increase implementation complexity.
-- Floating-point precision issues may affect displayed results for some operations.
-- Trigonometric edge cases (e.g. tan near 90°) require careful error/overflow handling.
+1. **Scientific parser complexity**
+   - Impact: Incorrect or inconsistent calculations
+   - Mitigation: Build controlled tokenization/parsing rules and unit-test edge cases thoroughly
+
+2. **Floating-point precision quirks**
+   - Impact: Display values may appear surprising for some operations
+   - Mitigation: Add controlled rounding/formatting rules for display output
+
+3. **Ambiguous operator behavior**
+   - Impact: Users may not understand `%`, `±`, or exponent precedence
+   - Mitigation: Define behavior clearly in implementation and test cases
 
 ## Assumptions
-- Frontend will manage immediate interaction state while backend remains source of truth for evaluation.
-- History persistence can start in-memory and later move to database without changing the API contract.
-- Minimal dependencies means avoiding heavy math/parser libraries unless truly necessary.
+1. Initial history persistence can remain in-memory
+2. Backend evaluation is preferred even if some client-side validation exists
+3. JavaScript `Math` precision is acceptable for V1 scientific scope
 
-## Issues
-- No confirmed persistence requirement beyond optional history persistence in V1.
-- Existing repository currently appears minimal, so scaffold decisions will shape implementation direction.
+## Issues / Unknowns
+1. No Figma URL was provided, so visual design guidance is based on PRD only
+2. No comment person was provided
+3. Branch requested (`test_calcad`) does not currently exist upstream and may need to be created from the existing calculator branch
 
 ## Dependencies
-- GitHub repository access for branch updates
-- Node.js runtime for backend
-- Browser environment with modern JavaScript support
-
-## Recommendation
-Use a small custom tokenizer/parser or tightly controlled expression evaluator service instead of relying on `eval` or large third-party math engines. This best matches the minimal-dependency and safety requirements.
+- React frontend setup
+- Node.js/Express backend setup
+- GitHub repository access for push
