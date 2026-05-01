@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator</title>
+</head>
+<body>
+    <h1>Calculator</h1>
+</body>
+<script>
+    const display = document.querySelector('[data-testid="display"]');
+    let current = '0';
+    let leftOperand = null;
+    let operator = null;
+    let resetOnNextDigit = false;
+    function setDisplay(value) {
+        display.textContent = value;
+    }
+    function inputDigit(digit) {
+        if (resetOnNextDigit) {
+            current = digit;
+            resetOnNextDigit = false;
+        }
+        else if (current === '0') {
+            current = digit;
+        }
+        else {
+            current += digit;
+        }
+        setDisplay(current);
+    }
+    function applyOperator(nextOperator) {
+        leftOperand = Number(current);
+        operator = nextOperator;
+        resetOnNextDigit = true;
+    }
+    function calculate() {
+        if (leftOperand === null || operator === null) return;
+        const rightOperand = Number(current);
+        let result = rightOperand;
+    }
+</script>
+</html>
