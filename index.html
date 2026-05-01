@@ -39,6 +39,33 @@
         if (leftOperand === null || operator === null) return;
         const rightOperand = Number(current);
         let result = rightOperand;
+        if (operator === '+') result = leftOperand + rightOperand;
+        if (operator === '-') result = leftOperand - rightOperand;
+        current = String(result);
+        leftOperand = null;
+        operator = null;
+        setDisplay(current);
+        resetOnNextDigit = true;
     }
+    function clearAll() {
+        current = '0';
+        leftOperand = null;
+        operator = null;
+        resetOnNextDigit = false;
+        setDisplay(current);
+    }
+    document.querySelectorAll('button[data-testid^="btn-"]').forEach((button) => {
+        const id = button.getAttribute('data-testid');
+        button.addEventListener('click', () => {
+            if (/^btn-\\d$/.test(id)) {
+                inputDigit(id.replace('btn-', ''));
+                return;
+            }
+            if (id === 'btn-plus') applyOperator('+');
+            else if (id === 'btn-minus') applyOperator('-');
+            else if (id === 'btn-equals') calculate();
+            else if (id === 'btn-clear') clearAll();
+        });
+    });
 </script>
 </html>
