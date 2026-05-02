@@ -10,8 +10,16 @@ export function postCalculate(req, res, next) {
       next(err);
       return;
     }
+    const exprStr = String(expression).trim();
+    if (exprStr === '') {
+      const err = new Error('Expression cannot be empty.');
+      err.code = 'EMPTY_EXPRESSION';
+      err.statusCode = 400;
+      next(err);
+      return;
+    }
     const mode = angleMode === 'RAD' ? 'RAD' : 'DEG';
-    const data = calculate(String(expression), mode);
+    const data = calculate(exprStr, mode);
     res.status(200).json({ success: true, data });
   } catch (err) {
     next(err);

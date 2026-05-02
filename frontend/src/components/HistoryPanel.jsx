@@ -9,7 +9,7 @@ export default function HistoryPanel({ items, onReuse }) {
           <li className="history-panel__empty">No calculations yet.</li>
         )}
         {items.map((item) => (
-          <li key={`${item.timestamp}-${item.expression}`} className="history-panel__item">
+          <li key={item.id ?? `${item.timestamp}-${item.expression}`} className="history-panel__item">
             <button
               type="button"
               className="history-panel__reuse"

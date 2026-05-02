@@ -1,28 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { toggleTrailingNumberSign } from '../utils/toggleTrailingNumberSign.js';
 import { hasDoubleDecimalInLastToken, isEmptyForEvaluate } from '../utils/validateExpression.js';
 
 const API = '/api';
-
-function toggleTrailingNumberSign(expr) {
-  if (!expr) return '-0';
-  const re = /^(.*?)([+-]?)(\d+\.?\d*|\d*\.\d+)$/;
-  const m = expr.match(re);
-  if (!m) return expr;
-  const [, head, sign, numStr] = m;
-  if (!numStr || numStr === '.') return expr;
-  const n = Number(numStr);
-  if (Number.isNaN(n)) return expr;
-  const flipped = -n;
-  const nextNum =
-    Object.is(flipped, -0) || flipped === 0
-      ? '0'
-      : String(flipped);
-  if (head === '' && sign === '-') {
-    return nextNum.startsWith('-') ? nextNum.slice(1) : nextNum;
-  }
-  const join = head.endsWith('-') && nextNum.startsWith('-') ? head.slice(0, -1) + '+' : head;
-  return `${join}${nextNum}`;
-}
 
 export function useCalculatorState() {
   const [expression, setExpression] = useState('');

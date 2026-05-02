@@ -6,5 +6,8 @@ export function hasDoubleDecimalInLastToken(expression) {
 }
 
 export function isEmptyForEvaluate(expression) {
-  return !expression || !String(expression).trim();
+  if (expression === undefined || expression === null) {
+    return true;
+  }
+  return !String(expression).trim();
 }

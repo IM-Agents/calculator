@@ -1,8 +1,11 @@
+import { randomUUID } from 'node:crypto';
+
 const MAX_ITEMS = 10;
 const items = [];
 
 export function addHistoryItem(entry) {
   const record = {
+    id: randomUUID(),
     expression: entry.expression,
     result: entry.result,
     timestamp: new Date().toISOString(),
