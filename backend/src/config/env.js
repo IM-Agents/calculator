@@ -26,7 +26,20 @@ function resolveListenPort() {
   return n;
 }
 
+function resolveNodeEnv() {
+  const raw = process.env.NODE_ENV;
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.trim();
+  }
+  return 'development';
+}
+
+const nodeEnv = resolveNodeEnv();
+
 export const env = Object.freeze({
   listenPort: resolveListenPort(),
   corsOrigins: Object.freeze(parseCorsOrigins()),
+  nodeEnv,
+  /** Set `Secure` on session cookies when running in production (HTTPS). */
+  cookieSecure: nodeEnv === 'production',
 });

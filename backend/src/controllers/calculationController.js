@@ -10,7 +10,22 @@ export function postCalculate(req, res, next) {
       next(err);
       return;
     }
-    const exprStr = String(expression).trim();
+    const exprType = typeof expression;
+    if (exprType !== 'string' && exprType !== 'number') {
+      const err = new Error('Expression must be a string or number.');
+      err.code = 'INVALID_EXPRESSION';
+      err.statusCode = 400;
+      next(err);
+      return;
+    }
+    if (exprType === 'number' && !Number.isFinite(expression)) {
+      const err = new Error('Expression must be a finite number.');
+      err.code = 'INVALID_EXPRESSION';
+      err.statusCode = 400;
+      next(err);
+      return;
+    }
+    const exprStr = exprType === 'number' ? String(expression) : String(expression).trim();
     if (exprStr === '') {
       const err = new Error('Expression cannot be empty.');
       err.code = 'EMPTY_EXPRESSION';

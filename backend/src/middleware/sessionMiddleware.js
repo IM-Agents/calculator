@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { env } from '../config/env.js';
 
 const COOKIE_NAME = 'calc_sid';
 const COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 400;
@@ -34,6 +35,9 @@ function appendSetCookie(res, value) {
     'SameSite=Lax',
     `Max-Age=${COOKIE_MAX_AGE_SEC}`,
   ];
+  if (env.cookieSecure) {
+    parts.push('Secure');
+  }
   res.append('Set-Cookie', parts.join('; '));
 }
 
