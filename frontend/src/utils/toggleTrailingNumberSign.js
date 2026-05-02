@@ -37,6 +37,32 @@ function tokenizeWithSpans(input) {
   return tokens;
 }
 
+function skipSpacesLeft(str, i) {
+  let j = i;
+  while (j >= 0 && /\s/.test(str[j])) {
+    j -= 1;
+  }
+  return j;
+}
+
+/**
+ * If the last numeric literal is preceded by a binary + or - (addition-level),
+ * flip that operator and keep the literal digits — e.g. `5-3` <-> `5+3`.
+ * Returns null if a different rewrite (numeric negation) should apply.
+ */
+function tryFlipBinaryOperatorBeforeLastNumber(str, lastNum) {
+  const opIdx = skipSpacesLeft(str, lastNum.start - 1);
+  if (opIdx < 0) return null;
+  const op = str[opIdx];
+  if (op !== '+' && op !== '-') return null;
+  const prevIdx = skipSpacesLeft(str, opIdx - 1);
+  if (prevIdx < 0) return null;
+  const prev = str[prevIdx];
+  if (!/[0-9)]/.test(prev)) return null;
+  const flippedOp = op === '-' ? '+' : '-';
+  return str.slice(0, opIdx) + flippedOp + str.slice(opIdx + 1);
+}
+
 function formatNegatedNumber(n) {
   const flipped = -n;
   if (Object.is(flipped, -0) || flipped === 0) {
@@ -61,11 +87,20 @@ export function toggleTrailingNumberSign(expr) {
   if (!lastNum) {
     return str;
   }
+  const binaryFlipped = tryFlipBinaryOperatorBeforeLastNumber(str, lastNum);
+  if (binaryFlipped != null) {
+    return binaryFlipped;
+  }
   const slice = str.slice(lastNum.start, lastNum.end);
   const n = Number(slice);
   if (Number.isNaN(n)) {
     return str;
   }
-  const nextNum = formatNegatedNumber(n);
-  return str.slice(0, lastNum.start) + nextNum + str.slice(lastNum.end);
+  let nextNum = formatNegatedNumber(n);
+  let prefix = str.slice(0, lastNum.start);
+  if (prefix.endsWith('-') && nextNum.startsWith('-')) {
+    prefix = prefix.slice(0, -1);
+    nextNum = nextNum.slice(1);
+  }
+  return prefix + nextNum + str.slice(lastNum.end);
 }

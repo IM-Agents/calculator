@@ -15,7 +15,7 @@ export function useCalculatorState() {
 
   const refreshHistory = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/history`);
+      const res = await fetch(`${API}/history`, { credentials: 'include' });
       const json = await res.json();
       if (json.success && json.data?.items) {
         setHistory(json.data.items);
@@ -71,6 +71,7 @@ export function useCalculatorState() {
     try {
       const res = await fetch(`${API}/calculate`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expression, angleMode }),
       });

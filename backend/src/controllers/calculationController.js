@@ -19,7 +19,7 @@ export function postCalculate(req, res, next) {
       return;
     }
     const mode = angleMode === 'RAD' ? 'RAD' : 'DEG';
-    const data = calculate(exprStr, mode);
+    const data = calculate(exprStr, mode, req.sessionId);
     res.status(200).json({ success: true, data });
   } catch (err) {
     next(err);

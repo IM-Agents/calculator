@@ -9,5 +9,8 @@ export function isEmptyForEvaluate(expression) {
   if (expression === undefined || expression === null) {
     return true;
   }
-  return !String(expression).trim();
+  if (typeof expression === 'number') {
+    return false;
+  }
+  return String(expression).trim() === '';
 }
