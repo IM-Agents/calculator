@@ -1,5 +1,9 @@
 const BASE = '/api/v1/calculator';
 
+function isExplicitSuccess(json) {
+  return json != null && json.success === true;
+}
+
 function throwApiFailure(json, fallbackMessage) {
   const msg = json.error?.message || fallbackMessage;
   const raw = json.error?.code;
@@ -16,7 +20,7 @@ export async function evaluateExpression(expression, angleMode) {
     body: JSON.stringify({ expression, angleMode }),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok || !json.success) {
+  if (!res.ok || !isExplicitSuccess(json)) {
     throwApiFailure(json, 'Calculation failed.');
   }
   return json.data;
@@ -29,7 +33,7 @@ export async function evaluateStructured(operation, operands, angleMode) {
     body: JSON.stringify({ operation, operands, angleMode }),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok || !json.success) {
+  if (!res.ok || !isExplicitSuccess(json)) {
     throwApiFailure(json, 'Calculation failed.');
   }
   return json.data;
@@ -42,7 +46,7 @@ export async function postHistory(entry) {
     body: JSON.stringify(entry),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok || json.success === false) {
+  if (!res.ok || !isExplicitSuccess(json)) {
     throwApiFailure(json, 'Could not save history entry.');
   }
 }

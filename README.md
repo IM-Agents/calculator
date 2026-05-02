@@ -78,7 +78,8 @@ All implementation planning documents are stored in `docs/`:
 - **History file:** `HISTORY_PERSISTENCE_FILE` overrides the default JSON path. The file is gitignored; back it up if you rely on it in production. Startup load failures (missing file, invalid JSON, or I/O errors) are logged to stderr with the file path, then history starts empty.
 - **Request logs:** Access logs use the URL path only (no query string), so tokens or sensitive query parameters are not written to the console by default.
 - **Secrets:** Do not put API keys or tokens in the client bundle; keep them in server environment variables or a secret manager.
-- **CodeRabbit:** Path-scoped review rules target `client/src/` and `server/src/` (including `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, and `.cjs` where present), not legacy `frontend/` / `backend/` folder names. Workflow and other `.yml` / `.yaml` files under the repo are not globally excluded from review, so CI and deployment config changes stay in scope.
+- **CodeRabbit:** Path-scoped review rules target `client/src/` and `server/src/` (including `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, and `.cjs` where present), not legacy `frontend/` / `backend/` folder names. `path_filters` excludes only docs, `node_modules`, `.cursor`, `AGENTS.md`, and Markdown files—not all YAML—so workflow and CI config changes remain reviewable.
+- **API client:** `client/src/services/calculatorApi.js` treats a response as successful only when the JSON body includes `success: true` (not merely “not false”), so empty bodies, parse failures, and malformed payloads surface as errors instead of silent success.
 - **Number normalization:** Result rounding skips the fixed decimal scale when the magnitude would overflow IEEE doubles, so very large finite operands stay finite through normalization.
 
 ## Notes
