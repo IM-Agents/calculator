@@ -12,7 +12,6 @@ reviews:
     - "!.cursor/**"
     - "!AGENTS.md"
     - "!**/*.md"
-    - "!**/*.yml"
 
   path_instructions:
     - path: "client/src/**/*.{js,jsx,ts,tsx,mjs,cjs}"

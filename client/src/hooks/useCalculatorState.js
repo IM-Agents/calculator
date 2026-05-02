@@ -85,7 +85,9 @@ export function useCalculatorState({ onHistoryEntry }) {
         expression: data.expression,
         result: data.result,
         angleMode: data.angleMode,
-      }).catch(() => {});
+      }).catch((err) => {
+        console.error('[history] failed to sync with server:', err?.message || err);
+      });
     } catch (e) {
       setError(e.message);
       setIsFreshResult(false);
