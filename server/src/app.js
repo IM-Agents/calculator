@@ -29,7 +29,7 @@ app.use((req, res) => {
     success: false,
     error: {
       code: ERROR_CODES.NOT_FOUND,
-      message: 'Resource not found.',
+      message: 'The requested resource could not be found.',
     },
   });
 });
