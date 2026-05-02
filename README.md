@@ -12,5 +12,6 @@ Documentation has been added under /docs on branch Saturday_test_task_three.
 
 ## Security notes
 
+- **CORS:** With `credentials: true`, the API must not reflect arbitrary `Origin` headers. Set **`CORS_ORIGIN`** to a comma-separated allowlist (for example `https://app.example.com` or `http://localhost:5173,http://127.0.0.1:5173`). If unset, only common local dev origins (`http://localhost:5173`, `http://localhost:3000`) are accepted.
 - No secrets are embedded in the client; the session id is an opaque UUID in an HttpOnly cookie, not echoed in JSON bodies.
 - Expression input is validated at the controller (trim, empty check) and again in the parser (character whitelist, structure).

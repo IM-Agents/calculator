@@ -24,7 +24,7 @@ jobs:
       # Shown in ClickUp after the intro — keeps fixes in source files and leaves process.md alone.
       CLICKUP_AGENT_RULES: |
         Constraints: edit application source files directly; do not add new .md files to implement fixes.
-        Do not change process.md (reserved for automation keys). Add documentation to README.md instead of process.md.
+        Do not change process.md (reserved for automation keys). Only give code change writeups.
       # Posted to ClickUp when CodeRabbit leaves no actionable summary content or approves the PR on GitHub.
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 

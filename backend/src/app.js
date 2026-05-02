@@ -5,11 +5,34 @@ import historyRoutes from './routes/historyRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { sessionMiddleware } from './middleware/sessionMiddleware.js';
 
+function getAllowedCorsOrigins() {
+  const raw = process.env.CORS_ORIGIN;
+  if (typeof raw === 'string' && raw.trim()) {
+    const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    if (list.length > 0) return list;
+  }
+  return ['http://localhost:5173', 'http://localhost:3000'];
+}
+
+const allowedCorsOrigins = new Set(getAllowedCorsOrigins());
+
+function corsOrigin(origin, callback) {
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+  if (allowedCorsOrigins.has(origin)) {
+    callback(null, true);
+    return;
+  }
+  callback(null, false);
+}
+
 const app = express();
 
 app.use(
   cors({
-    origin: true,
+    origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
