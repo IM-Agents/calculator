@@ -6,5 +6,5 @@ import { env } from './config/env.js';
  * On PaaS, set CALCULATOR_API_PORT to the platform PORT if needed, or rely on PORT alone.
  */
 app.listen(env.listenPort, () => {
-  console.log(`Calculator API listening on http://localhost:${env.listenPort}`);
+  console.log(`Calculator API listening on http://localhost:${env.listenPort} with env: ${env.listenPort}`);
 });
