@@ -7,7 +7,8 @@ function load() {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.slice(0, MAX_HISTORY) : [];
-  } catch {
+  } catch (err) {
+    console.warn('[history] local load failed:', err?.message || err);
     return [];
   }
 }

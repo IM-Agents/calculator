@@ -51,7 +51,7 @@ calculator/
 ```
 
 ## Recommended Delivery Scope for V1
-- Calculator UI with local state for input, memory, angle mode, and recent history (browser localStorage keeps the last 10 entries for offline UX)
+- Calculator UI with local state for input, memory, angle mode, and recent history (browser localStorage keeps the last 10 entries for offline UX; if stored JSON is corrupt, entries reset to empty and a short warning is logged to the browser console)
 - Backend API for safe expression evaluation and unary function execution; successful calculations can POST to `/api/v1/calculator/history`, which persists to JSON on disk by default (see **Data Storage** above)
 - Clean modular architecture for easy future extension; for multiple API replicas or shared history, point deployments at a single database instead of separate files per instance
 
