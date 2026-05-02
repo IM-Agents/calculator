@@ -115,17 +115,20 @@ jobs:
           echo "coderabbit_approval=${coderabbit_approval}" >> "$GITHUB_OUTPUT"
 
       - name: Skip if nothing to process
+        id: skip_check
         run: |
           if [ "${{ steps.cu_flags.outputs.coderabbit_approval }}" = "true" ]; then
             echo "CodeRabbit approved the PR — continuing (ClickUp uses CLICKUP_NO_IMPROVEMENTS_SUMMARY)."
-            exit 0
-          fi
-          if [ -z "${COMMENT_BODY:-}" ] && [ -z "${CLICKUP_AGGREGATE_BODY:-}" ]; then
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "${COMMENT_BODY:-}" ] && [ -z "${CLICKUP_AGGREGATE_BODY:-}" ]; then
             echo "No CodeRabbit text for this event and no aggregated PR comments. Skipping."
-            exit 0
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Resolve ClickUp task and validate branch
+        if: steps.skip_check.outputs.should_skip != 'true'
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
@@ -205,7 +208,7 @@ jobs:
           echo "ClickUp assignee user id (workflow CLICKUP_ASSIGNEE_USER_ID): ${CLICKUP_ASSIGNEE_USER_ID}"
 
       - name: Post CodeRabbit suggestion to ClickUp
-        if: env.TASK_ID != ''
+        if: steps.skip_check.outputs.should_skip != 'true' && env.TASK_ID != ''
         env:
           CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
           IS_CODERABBIT_APPROVAL: ${{ steps.cu_flags.outputs.coderabbit_approval }}
@@ -298,8 +301,7 @@ jobs:
           fi
 
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "ClickUp response:"
-            echo "$RESP"
+            echo "ClickUp request failed with HTTP code: $HTTP_CODE"
             if [ "$HTTP_CODE" = "401" ]; then
               echo "::error::ClickUp returned 401 (invalid token). Update GitHub secret CLICKUP_API_KEY with a valid ClickUp API token for this workspace."
             fi

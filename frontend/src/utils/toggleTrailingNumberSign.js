@@ -82,10 +82,13 @@ function formatNegatedNumber(n) {
 }
 
 export function toggleTrailingNumberSign(expr) {
-  if (expr == null || expr === '') {
-    return '-0';
+  if (expr == null) {
+    return expr;
   }
   const str = String(expr);
+  if (str === '') {
+    return str;
+  }
   const tokens = tokenizeWithSpans(str);
   let lastNum = null;
   for (let t = tokens.length - 1; t >= 0; t -= 1) {
