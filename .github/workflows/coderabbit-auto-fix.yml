@@ -41,7 +41,7 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Extract CodeRabbit comment
         env:
@@ -55,9 +55,10 @@ jobs:
             COMMENT_BODY=$(echo "$REVIEW_JSON" | jq -r .)
           fi
 
-          echo "COMMENT_BODY<<EOF" >> $GITHUB_ENV
+          DELIM="COMMENT_BODY_EOF_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT:-0}_$(date +%s%N)"
+          echo "COMMENT_BODY<<$DELIM" >> $GITHUB_ENV
           echo "$COMMENT_BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "$DELIM" >> $GITHUB_ENV
 
       # CodeRabbit inline comments anchored to the current PR head only (avoids re-posting older pushes).
       # Comment bodies include markdown + suggested code fences like Untitled-1 examples.
@@ -98,7 +99,10 @@ jobs:
       - name: Debug comment
         run: |
           echo "Detected CodeRabbit suggestion (this event):"
-          echo "$COMMENT_BODY"
+          echo "COMMENT_BODY length (chars): ${#COMMENT_BODY}"
+          if [ -n "${COMMENT_BODY:-}" ]; then
+            echo "COMMENT_BODY sha256: $(printf '%s' "$COMMENT_BODY" | sha256sum | awk '{print $1}')"
+          fi
           echo "---"
           echo "Aggregated CodeRabbit bodies length (chars): ${#CLICKUP_AGGREGATE_BODY}"
 
@@ -278,7 +282,7 @@ jobs:
             BODY=$(jq -n --arg text "$BLOCK" '{comment_text:$text, notify_all:false}')
           fi
 
-          RESP=$(curl -s -w "\n%{http_code}" -X POST "https://api.clickup.com/api/v2/task/${TASK_ID}/comment" \
+          RESP=$(curl -s --max-time 30 -w "\n%{http_code}" -X POST "https://api.clickup.com/api/v2/task/${TASK_ID}/comment" \
             -H "Authorization: $CLICKUP_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$BODY")
@@ -292,7 +296,7 @@ jobs:
             BODY=$(jq -n \
               --arg text "$BLOCK" \
               '{comment_text:$text, notify_all:false}')
-            RESP=$(curl -s -w "\n%{http_code}" -X POST "https://api.clickup.com/api/v2/task/${TASK_ID}/comment" \
+            RESP=$(curl -s --max-time 30 -w "\n%{http_code}" -X POST "https://api.clickup.com/api/v2/task/${TASK_ID}/comment" \
               -H "Authorization: $CLICKUP_TOKEN" \
               -H "Content-Type: application/json" \
               -d "$BODY")
