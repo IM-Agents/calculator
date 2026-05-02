@@ -20,7 +20,7 @@ function resolveListenPort() {
     return 3001;
   }
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) {
+  if (!Number.isInteger(n) || n < 1 || n > 65535) {
     return 3001;
   }
   return n;

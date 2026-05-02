@@ -77,5 +77,11 @@ export function normalizeNumber(n) {
     throw err;
   }
   const rounded = Math.round(n * 1e12) / 1e12;
+  if (!Number.isFinite(rounded)) {
+    const err = new Error('Result is not a finite number.');
+    err.code = 'UNSUPPORTED_OPERATION';
+    err.statusCode = 422;
+    throw err;
+  }
   return Object.is(rounded, -0) ? 0 : rounded;
 }

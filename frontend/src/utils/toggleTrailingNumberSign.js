@@ -45,6 +45,15 @@ function skipSpacesLeft(str, i) {
   return j;
 }
 
+function indexOfLastNonSpace(str) {
+  for (let i = str.length - 1; i >= 0; i -= 1) {
+    if (!/\s/.test(str[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /**
  * If the last numeric literal is preceded by a binary + or - (addition-level),
  * flip that operator and keep the literal digits — e.g. `5-3` <-> `5+3`.
@@ -85,6 +94,10 @@ export function toggleTrailingNumberSign(expr) {
     }
   }
   if (!lastNum) {
+    return str;
+  }
+  const lastNonSpace = indexOfLastNonSpace(str);
+  if (lastNonSpace < lastNum.start || lastNonSpace >= lastNum.end) {
     return str;
   }
   const binaryFlipped = tryFlipBinaryOperatorBeforeLastNumber(str, lastNum);
