@@ -8,6 +8,7 @@ export const ERROR_CODES = {
   EMPTY_INPUT: 'EMPTY_INPUT',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  NOT_FOUND: 'NOT_FOUND',
 };
 
 export const UNARY_FUNCS = new Set(['sin', 'cos', 'tan', 'log', 'ln', 'sqrt']);
