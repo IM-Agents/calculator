@@ -25,8 +25,7 @@ app.use('/api/v1/calculator', calculatorRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
-    success: false,
-    error: { code: 'NOT_FOUND', message: 'The requested resource could not be found.' },
+    success: false
   });
 });
 
