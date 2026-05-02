@@ -79,7 +79,7 @@ All implementation planning documents are stored in `docs/`:
 - **Secrets:** Do not put API keys or tokens in the client bundle; keep them in server environment variables or a secret manager.
 - **CodeRabbit:** Path-scoped review rules target `client/src/` and `server/src/` (including `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, and `.cjs` where present), not legacy `frontend/` / `backend/` folder names. `path_filters` excludes only docs, `node_modules`, `.cursor`, `AGENTS.md`, and Markdown files—not all YAML—so workflow and CI config changes remain reviewable.
 - **API client:** `client/src/services/calculatorApi.js` treats a response as successful only when the JSON body includes `success: true` (not merely “not false”), so empty bodies, parse failures, and malformed payloads surface as errors instead of silent success.
-- **Number normalization:** Result rounding skips the fixed decimal scale when the magnitude would overflow IEEE doubles, so very large finite operands stay finite through normalization.
+- **Number normalization:** Result rounding skips the fixed decimal scale when the magnitude would overflow IEEE doubles, so very large finite operands stay finite through normalization. Structured unary evaluation (`operation` + `operands`) applies the same finite-result rule as expression evaluation: if the trig path still yields a non-finite value (for example degree-to-radian overflow), the API responds with an invalid-domain error instead of returning `NaN` or `Infinity`.
 
 ## Notes
 - React UI must be fully responsive across **mobile, tablet, and desktop**.

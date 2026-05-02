@@ -237,7 +237,14 @@ export function evaluateExpression(expression, angleMode) {
 
 export function evaluateStructured(operation, operands, angleMode) {
   const x = operands[0];
-  return normalizeNumber(applyUnaryFunction(operation, x, angleMode));
+  const result = normalizeNumber(applyUnaryFunction(operation, x, angleMode));
+  if (!Number.isFinite(result)) {
+    throw new CalculatorError(
+      ERROR_CODES.INVALID_DOMAIN,
+      'Result is not a finite number.',
+    );
+  }
+  return result;
 }
 
 export function evaluateRequest(payload) {
