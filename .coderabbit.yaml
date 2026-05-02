@@ -8,6 +8,7 @@ reviews:
   review_details: true
   path_filters:
     - "!docs/**"
+    - "!node_modules/**"
     - "!.cursor/**"
     - "!AGENTS.md"
     - "!**/*.md"
