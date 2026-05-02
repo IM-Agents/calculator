@@ -6,7 +6,18 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
-app.use(cors());
+const corsOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const corsOrigin =
+  corsOrigins.length === 0
+    ? 'http://localhost:5173'
+    : corsOrigins.length === 1
+      ? corsOrigins[0]
+      : corsOrigins;
+
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '32kb' }));
 app.use(requestLogger);
 

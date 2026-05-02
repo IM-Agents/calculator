@@ -7,7 +7,7 @@ A responsive calculator web application built with **React 18** for the frontend
 - **Frontend:** React 18, CSS3, JavaScript
 - **Backend:** Node.js 24.13.1, Express.js
 - **API Style:** REST
-- **Data Storage:** In-memory for V1, with optional upgrade path to MySQL for persistent history
+- **Data Storage:** JSON file under `server/data/calculator-history.json` by default (durable across restarts); set `HISTORY_PERSISTENCE_FILE` to use another path. MySQL remains an optional upgrade for shared or multi-instance storage.
 - **Testing (recommended):** Vitest/Jest for unit tests, React Testing Library for UI tests, Supertest for API tests
 
 ## Core Product Goals
@@ -73,7 +73,13 @@ All implementation planning documents are stored in `docs/`:
 - Persistent history with MySQL
 - Graph plotting for advanced math workflows
 
+## Server environment & security
+- **CORS:** Set `FRONTEND_URL` to the browser origin that talks to this API (default `http://localhost:5173`). Use a comma-separated list for multiple origins (for example staging and production).
+- **History file:** `HISTORY_PERSISTENCE_FILE` overrides the default JSON path. The file is gitignored; back it up if you rely on it in production.
+- **Request logs:** Access logs use the URL path only (no query string), so tokens or sensitive query parameters are not written to the console by default.
+- **Secrets:** Do not put API keys or tokens in the client bundle; keep them in server environment variables or a secret manager.
+
 ## Notes
 - React UI must be fully responsive across **mobile, tablet, and desktop**.
 - Backend should never use unsafe direct evaluation without validation/sanitization controls.
-- If persistent history becomes mandatory, MySQL should be introduced as the first storage option to align with the broader preferred stack.
+- For multiple server replicas or shared history, replace file-based history with a database (for example MySQL) and a single shared store.

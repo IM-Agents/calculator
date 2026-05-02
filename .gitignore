@@ -35,3 +35,6 @@ Thumbs.db
 
 # Optional local tooling
 *.local
+
+# Server-persisted calculator history (local / deploy)
+server/data/calculator-history.json
