@@ -1,0 +1,15 @@
+export const ANGLE_MODES = ['deg', 'rad'];
+
+export const ERROR_CODES = {
+  DIVISION_BY_ZERO: 'DIVISION_BY_ZERO',
+  INVALID_EXPRESSION: 'INVALID_EXPRESSION',
+  INVALID_DOMAIN: 'INVALID_DOMAIN',
+  UNSUPPORTED_OPERATION: 'UNSUPPORTED_OPERATION',
+  EMPTY_INPUT: 'EMPTY_INPUT',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+};
+
+export const UNARY_FUNCS = new Set(['sin', 'cos', 'tan', 'log', 'ln', 'sqrt']);
+
+export const CONSTANTS = new Set(['pi', 'e']);

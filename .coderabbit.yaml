@@ -1,0 +1,89 @@
+# https://docs.coderabbit.ai/guides/configuration-overview
+# Calculator app: client (React/Vite), server (Express). Desktop block kept for optional Electron paths.
+language: en-US
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  review_details: true
+  path_filters:
+    - "!docs/**"
+    - "!node_modules/**"
+    - "!.cursor/**"
+    - "!AGENTS.md"
+    - "!**/*.md"
+
+  path_instructions:
+    - path: "client/src/**/*.{js,jsx,ts,tsx,mjs,cjs}"
+      instructions: |
+        This path is the React 18 + Vite calculator UI. Treat these as strict blocking rules for changed lines:
+
+        - No ad-hoc `console.log` / `console.debug` / `console.info` in production paths; use an approved logger if the project adds one.
+        - No unused variables, imports, or parameters in new/changed code.
+        - React lists (`.map`, etc.) must use a stable, unique `key` on the top-level element in the list.
+        - No inline object styles on JSX: disallow `style={{ ... }}`; use `client/src/styles/` or other CSS files consistent with this repo.
+        - API calls go through `client/src/services/` (e.g. `calculatorApi.js`); new calls must handle errors (`.catch`, user-visible error state, or equivalent)—not silent failures.
+        - No hardcoded secrets, API keys, or tokens; Vite env vars must use the `VITE_` prefix only for client-safe values.
+        - Prefer shared components under `client/src/components/` and hooks under `client/src/hooks/` instead of duplicating non-trivial UI logic.
+
+        If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
+
+    - path: "server/src/**/*.{js,mjs,cjs,ts,tsx}"
+      instructions: |
+        This path is the Node.js + Express calculator API. Blocking rules for changed lines:
+
+        - Use environment variables for deployment-specific values (ports, CORS `FRONTEND_URL`, optional `HISTORY_PERSISTENCE_FILE`); do not hardcode secrets or production hosts in source.
+        - Async route handlers and services must propagate errors to Express (`next(err)` or throw into async wrappers) or handle them explicitly—no empty `catch` blocks that hide failures.
+        - Restrict CORS to known frontend origins; do not use blanket `cors()` with no origin policy in production-facing code.
+        - Calculator evaluation must stay on validated/sanitized input—no `eval` or `Function` on user strings.
+        - No new dependencies on `eval`, `child_process` with untrusted input, or disabling security middleware without strong justification.
+        - Prefer `server/src/services/` for business logic and keep controllers thin.
+
+        If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
+
+    - path: "desktop/src/**/*.{js,mjs,cjs,ts,tsx}"
+      instructions: |
+        This path is the Electron main process, preload, and renderer for the local print client. Blocking rules for changed lines:
+
+        - Preload must expose APIs only via `contextBridge` + `ipcRenderer` patterns consistent with `desktop/src/preload.js`—do not enable `nodeIntegration` in renderer or expose raw Node APIs widely.
+        - IPC channel names and payloads should stay explicit; avoid passing executable code or unsanitized shell commands from renderer to main.
+        - Printer and socket configuration must not embed secrets; use `desktop/src/main/config.js` (or env) patterns.
+        - Main-process network and printer operations should handle errors without crashing the app; log failures in a way operators can diagnose.
+        - No `eval` / `Function` constructor with remote or user-controlled strings.
+
+        If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
+
+  pre_merge_checks:
+    custom_checks:
+      - name: "Calculator app quality (client, server, desktop)"
+        mode: error
+        instructions: |
+          Pass/fail only from the PR diff and files touched in this PR.
+
+          Scope: classify each touched file under `client/src/`, `server/src/`, or `desktop/src/` and apply the matching rules below. Ignore unrelated paths (e.g. docs only) unless they embed secrets.
+
+          **client/src (React / Vite)** — FAIL if changed code introduces or leaves:
+          1) Ad-hoc `console.log` / `console.debug` / `console.info` as permanent logging (excluding clearly marked temporary dev scaffolding).
+          2) Unused variables, imports, or parameters in modified files.
+          3) List-rendered React elements without a proper `key` on the outermost element in that list.
+          4) Inline JSX styles `style={{` ... `}}` (except where a third-party API requires it—call that out).
+          5) New axios/fetch/socket flows without reachable error handling or user-visible failure behavior.
+          6) Hardcoded secrets or long-lived tokens in client source.
+          7) Obvious copy-paste duplication of non-trivial UI logic where a shared hook or component is appropriate.
+
+          **server/src (Express)** — FAIL if changed code introduces or leaves:
+          1) Hardcoded secrets, API keys, or DB passwords in source (must use environment variables).
+          2) Blanket `cors()` with no origin allowlist where browser access to mutating routes is a concern.
+          3) Async routes or services that swallow errors (empty catch, no `next(err)`, no structured response).
+          4) Unsafe evaluation (`eval`, `new Function`) on user-controlled calculator input.
+          5) Logging of full URLs with query strings on routes that may carry tokens or sensitive query params.
+
+          **desktop/src (Electron)** — FAIL if changed code introduces or leaves:
+          1) Unsafe renderer exposure (e.g. broad Node access from renderer contrary to preload `contextBridge` pattern).
+          2) Secrets or API keys embedded in main/preload/renderer source.
+          3) IPC or shell usage that passes unsanitized user/remote input into execution contexts.
+          4) Printer/socket code paths with no error handling where failures would leave the app in a silent broken state.
+
+          PASS if none of the above apply to the changes in scope.
+
+          If information is insufficient to decide, respond Inconclusive and name the file or behavior needed.
