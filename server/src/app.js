@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import calculatorRoutes from './routes/calculator.routes.js';
+import { ERROR_CODES } from './utils/constants.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -25,7 +26,11 @@ app.use('/api/v1/calculator', calculatorRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
-    success: false
+    success: false,
+    error: {
+      code: ERROR_CODES.NOT_FOUND,
+      message: 'Resource not found.',
+    },
   });
 });
 
