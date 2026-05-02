@@ -1,0 +1,239 @@
+.calculator-layout {
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1100px;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .calculator-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+}
+
+.calculator--container {
+  background: linear-gradient(160deg, #1a2130 0%, #141a24 100%);
+  border: 1px solid #2a3344;
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.calculator__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.calculator__memory {
+  font-size: 0.8rem;
+  color: #8b98ab;
+  font-variant-numeric: tabular-nums;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #2f3a4d;
+}
+
+.mode-toggle__btn {
+  appearance: none;
+  border: none;
+  background: #1c2433;
+  color: #9aa7b8;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mode-toggle__btn:hover {
+  background: #252f42;
+  color: #dce4ef;
+}
+
+.mode-toggle__btn:focus-visible {
+  outline: 2px solid #5b8cff;
+  outline-offset: 2px;
+}
+
+.mode-toggle__btn.is-active {
+  background: #2d62ff;
+  color: #fff;
+}
+
+.display {
+  background: #0b0e14;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid #232b3a;
+  min-height: 4.5rem;
+}
+
+.display__expression {
+  font-size: clamp(1.1rem, 2.8vw, 1.45rem);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+  line-height: 1.35;
+  color: #eef3fa;
+}
+
+.display__secondary {
+  margin-top: 0.35rem;
+  font-size: 0.95rem;
+  color: #7d8ca3;
+  font-variant-numeric: tabular-nums;
+  min-height: 1.25rem;
+}
+
+.display__secondary--error {
+  color: #ff8a8a;
+}
+
+.button-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.button-grid__row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.button-grid__row:last-child {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+
+.button-grid__btn {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid #2c3546;
+  background: #222b3a;
+  color: #e8ecf2;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+
+.button-grid__btn:hover {
+  background: #2a3548;
+  border-color: #3a4a62;
+}
+
+.button-grid__btn:active {
+  transform: scale(0.98);
+}
+
+.button-grid__btn:focus-visible {
+  outline: 2px solid #5b8cff;
+  outline-offset: 2px;
+}
+
+.button-grid__btn--op {
+  background: #2a3650;
+  color: #b8d4ff;
+  border-color: #3a4d6e;
+}
+
+.button-grid__btn--fn {
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #1e2636;
+  color: #a8b8d4;
+}
+
+.button-grid__btn--wide {
+  grid-column: span 2;
+}
+
+.history-panel {
+  background: #161c28;
+  border: 1px solid #2a3344;
+  border-radius: 16px;
+  padding: 1rem;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+}
+
+.history-panel__title {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #9aa7b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.history-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.history-panel__empty {
+  color: #6c788c;
+  font-size: 0.875rem;
+  padding: 0.25rem 0;
+}
+
+.history-panel__reuse {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  background: #1c2433;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.history-panel__reuse:hover {
+  border-color: #3a4a62;
+  background: #222b3a;
+}
+
+.history-panel__reuse:focus-visible {
+  outline: 2px solid #5b8cff;
+  outline-offset: 2px;
+}
+
+.history-panel__expr {
+  font-size: 0.8rem;
+  color: #b4c0d4;
+  word-break: break-all;
+}
+
+.history-panel__res {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #e8ecf2;
+}
+
+@media (max-width: 599px) {
+  .button-grid__row:not(:last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .button-grid__row:first-child,
+  .button-grid__row:nth-child(2) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

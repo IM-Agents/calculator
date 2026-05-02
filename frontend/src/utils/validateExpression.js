@@ -1,0 +1,10 @@
+export function hasDoubleDecimalInLastToken(expression) {
+  let j = expression.length - 1;
+  while (j >= 0 && /[0-9.]/.test(expression[j])) j -= 1;
+  const token = expression.slice(j + 1);
+  return (token.match(/\./g) || []).length > 1;
+}
+
+export function isEmptyForEvaluate(expression) {
+  return !expression || !String(expression).trim();
+}
