@@ -26,7 +26,7 @@ app.use('/api/v1/calculator', calculatorRoutes);
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    error: { code: 'NOT_FOUND', message: 'Route not found.' },
+    error: { code: 'NOT_FOUND', message: 'Route not found darshan check agian.' },
   });
 });
 
