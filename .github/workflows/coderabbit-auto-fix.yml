@@ -1,0 +1,291 @@
+name: CodeRabbit Auto Fix
+
+concurrency:
+  group: coderabbit-fix-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+on:
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  ai_fix:
+    runs-on: ubuntu-latest
+    # Prepended to every ClickUp task comment (not stored in process.md).
+    # General docs belong in README.md — process.md is only for automation keys (branch, clickup_task).
+    env:
+      # ClickUp member id for assign + rich comment tag (workspace user; here: n8n).
+      CLICKUP_ASSIGNEE_USER_ID: '101032796'
+      # Configurable starter line shown first in ClickUp to guide agent kickoff.
+      CLICKUP_AGENT_PREFIX: 'Role: Start fixing the CodeRabbit bugs'
+      CLICKUP_AGENT_INTRO: 'You are an autonomous coding agent with full repository write access.'
+      # Shown in ClickUp after the intro — keeps fixes in source files and leaves process.md alone.
+      CLICKUP_AGENT_RULES: |
+        Constraints: edit application source files directly; do not add new .md files to implement fixes.
+        Do not change process.md (reserved for automation keys). Add documentation to README.md instead of process.md.
+
+    if: |
+      contains(github.event.comment.user.login, 'coderabbit') ||
+      contains(github.event.review.user.login, 'coderabbit')
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Extract CodeRabbit comment
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_JSON: ${{ toJSON(github.event.comment.body || '') }}
+          REVIEW_JSON: ${{ toJSON(github.event.review.body || '') }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request_review_comment" ]; then
+            COMMENT_BODY=$(echo "$COMMENT_JSON" | jq -r .)
+          else
+            COMMENT_BODY=$(echo "$REVIEW_JSON" | jq -r .)
+          fi
+
+          echo "COMMENT_BODY<<EOF" >> $GITHUB_ENV
+          echo "$COMMENT_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      # All inline PR review comments from CodeRabbit (one ClickUp post with full PR feedback).
+      - name: Fetch all CodeRabbit PR review comments
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -e
+          RAW=$(gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/comments" 2>/dev/null || true)
+          PAGES=$(printf '%s' "$RAW" | jq -s 'add // []' 2>/dev/null || echo '[]')
+          AGG_TEXT=$(echo "$PAGES" | jq -r '
+            [.[]? | select(.user.login | ascii_downcase | contains("coderabbit"))]
+            | sort_by(.created_at)
+            | unique_by(.id)
+            | map(.body)
+            | join("\n\n---\n\n")
+          ' 2>/dev/null || echo '')
+          {
+            echo "CLICKUP_AGGREGATE_BODY<<__AGG_EOF__"
+            echo "$AGG_TEXT"
+            echo "__AGG_EOF__"
+          } >> $GITHUB_ENV
+          COUNT=$(echo "$PAGES" | jq '[.[]? | select(.user.login | ascii_downcase | contains("coderabbit"))] | length' 2>/dev/null || echo 0)
+          echo "Aggregated CodeRabbit inline comments on PR #${PR_NUMBER}: ${COUNT}"
+
+      - name: Debug comment
+        run: |
+          echo "Detected CodeRabbit suggestion (this event):"
+          echo "$COMMENT_BODY"
+          echo "---"
+          echo "Aggregated CodeRabbit bodies length (chars): ${#CLICKUP_AGGREGATE_BODY}"
+
+      - name: Skip if nothing to process
+        run: |
+          if [ -z "${COMMENT_BODY:-}" ] && [ -z "${CLICKUP_AGGREGATE_BODY:-}" ]; then
+            echo "No CodeRabbit text for this event and no aggregated PR comments. Skipping."
+            exit 0
+          fi
+
+      - name: Resolve ClickUp task and validate branch
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          TASK_ID=""
+          PROC_BRANCH=""
+          PROC_TASK_URL=""
+
+          proc_get() {
+            local key="$1"
+            local file="$2"
+            local line
+            line=$(grep -E "^[[:space:]]*${key}:[[:space:]]*" "$file" | head -1 || true)
+            [ -z "$line" ] && return 0
+            echo "$line" | sed -E "s/^[[:space:]]*${key}:[[:space:]]*//;s/[[:space:]]*#.*$//;s/[[:space:]]*$//;s/^[\"']//;s/[\"']$//"
+          }
+
+          id_from_clickup_string() {
+            local s="$1"
+            local id
+            id=$(echo "$s" | grep -oEi '/t/[a-z0-9]+' | tail -1 | sed 's|^/t/||' || true)
+            if [ -z "$id" ]; then
+              id=$(echo "$s" | grep -oEi 'clickup\.com/t/[a-z0-9]+' | head -1 | sed 's|.*/t/||' || true)
+            fi
+            echo "$id"
+          }
+
+          PROC_FILE="process.md"
+          if [ -f "$PROC_FILE" ]; then
+            echo "Parsing $PROC_FILE for clickup_task and branch."
+            PROC_BRANCH=$(proc_get branch "$PROC_FILE" || true)
+            PROC_TASK_RAW=$(proc_get clickup_task "$PROC_FILE" || true)
+            if [ -n "$PROC_TASK_RAW" ]; then
+              if echo "$PROC_TASK_RAW" | grep -qi 'clickup\.com'; then
+                TASK_ID=$(id_from_clickup_string "$PROC_TASK_RAW")
+                PROC_TASK_URL=$(echo "$PROC_TASK_RAW" | tr -d '\r' | sed 's/[[:space:]]*$//')
+              else
+                CLEAN=$(echo "$PROC_TASK_RAW" | tr -d '\r')
+                if echo "$CLEAN" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+                  TASK_ID="$CLEAN"
+                  PROC_TASK_URL="https://app.clickup.com/t/${TASK_ID}"
+                fi
+              fi
+              if [ -n "$TASK_ID" ]; then
+                echo "ClickUp task id from $PROC_FILE: $TASK_ID"
+              fi
+            fi
+          else
+            echo "process.md not found at repo root."
+          fi
+
+          if [ -z "$TASK_ID" ]; then
+            echo "No clickup_task in process.md; skipping ClickUp validation and comments."
+          else
+            if [ -z "$PROC_BRANCH" ]; then
+              echo "::error::When clickup_task is set, branch must be set in process.md (e.g. branch: cursor_new_oma_req) and must match the PR head branch."
+              exit 1
+            fi
+            if [ "$PROC_BRANCH" != "$HEAD_REF" ]; then
+              echo "::error::branch in process file ('$PROC_BRANCH') must match PR head ref ('$HEAD_REF'). Update process.md or use a PR from the correct branch."
+              exit 1
+            fi
+            echo "Branch validated: process branch matches PR head ($HEAD_REF)."
+          fi
+
+          echo "TASK_ID=$TASK_ID" >> $GITHUB_ENV
+          {
+            echo "PROC_TASK_URL<<__PROC_EOF__"
+            echo "${PROC_TASK_URL:-}"
+            echo "__PROC_EOF__"
+          } >> $GITHUB_ENV
+          echo "PROC_BRANCH=$PROC_BRANCH" >> $GITHUB_ENV
+          echo "CLICKUP_MEMBER_ID=${CLICKUP_ASSIGNEE_USER_ID}" >> $GITHUB_ENV
+          echo "Final ClickUp task id: ${TASK_ID:-<empty>}"
+          echo "ClickUp assignee user id (workflow CLICKUP_ASSIGNEE_USER_ID): ${CLICKUP_ASSIGNEE_USER_ID}"
+
+      - name: Post CodeRabbit suggestion to ClickUp
+        if: env.TASK_ID != ''
+        env:
+          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
+        run: |
+          CLICKUP_TOKEN=$(printf '%s' "${CLICKUP_API_KEY:-}" | tr -d '\r\n' | xargs)
+          if [ -z "$CLICKUP_TOKEN" ]; then
+            echo "::warning::CLICKUP_API_KEY is missing/empty after trim. Skipping ClickUp comment."
+            exit 0
+          fi
+
+          # Prefer full PR aggregate so ClickUp gets every CodeRabbit inline comment in one post.
+          SOURCE_TEXT="${CLICKUP_AGGREGATE_BODY:-$COMMENT_BODY}"
+          if [ -z "$SOURCE_TEXT" ]; then
+            SOURCE_TEXT="$COMMENT_BODY"
+          fi
+
+          CLEAN_COMMENT=$(printf '%s\n' "$SOURCE_TEXT" \
+            | sed '/<!--/,/-->/d' \
+            | sed '/<details>/,/<\/details>/d' \
+            | sed '/^[[:space:]]*You are an autonomous coding agent/d' \
+            | sed '/^[[:space:]]*Task:[[:space:]]*/d' \
+            | sed '/^[[:space:]]*Branch:[[:space:]]*/d' \
+            | awk '
+                {
+                  line=$0
+                  sub(/\r$/, "", line)
+                  if (line ~ /^[[:space:]]*$/) {
+                    if (!blank) { print ""; blank=1 }
+                  } else {
+                    print line
+                    blank=0
+                  }
+                }
+              ' \
+            | sed '/^[[:space:]]*$/{
+                     N
+                     /^[[:space:]]*\n[[:space:]]*$/D
+                   }')
+
+          if [ -n "${CLEAN_COMMENT:-}" ]; then
+            SUMMARY="$CLICKUP_AGENT_PREFIX
+
+          $CLICKUP_AGENT_INTRO
+
+          $CLICKUP_AGENT_RULES
+
+          CodeRabbit Review Summary
+
+          $CLEAN_COMMENT"
+          else
+            SUMMARY="Role: No improvements needed. Now the Run project"
+          fi
+
+          BLOCK="$SUMMARY
+
+          Task: ${{ env.PROC_TASK_URL }}
+          Branch: ${{ env.PROC_BRANCH }}"
+
+          if [ -n "${CLICKUP_MEMBER_ID:-}" ]; then
+            BODY=$(jq -n \
+              --argjson uid "$CLICKUP_MEMBER_ID" \
+              --arg text "$BLOCK" \
+              '{comment: [ {type:"tag", user:{id:$uid}}, {text: (" " + $text)} ], notify_all:false, assignee:$uid}')
+          else
+            COMMENT="@n8n
+
+          $SUMMARY
+
+          Task: ${{ env.PROC_TASK_URL }}
+          Branch: ${{ env.PROC_BRANCH }}
+
+          # @n8n"
+            BODY=$(jq -n --arg text "$COMMENT" '{comment_text:$text, notify_all:false}')
+          fi
+
+          RESP=$(curl -s -w "\n%{http_code}" -X POST "https://api.clickup.com/api/v2/task/${TASK_ID}/comment" \
+            -H "Authorization: $CLICKUP_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+
+          HTTP_CODE=$(echo "$RESP" | tail -n1)
+
+          echo "ClickUp response code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ] && [ -n "${CLICKUP_MEMBER_ID:-}" ]; then
+            echo "Rich comment failed; retrying with comment_text + assignee."
+            COMMENT="@n8n
+
+          $SUMMARY
+
+          Task: ${{ env.PROC_TASK_URL }}
+          Branch: ${{ env.PROC_BRANCH }}
+
+          # @n8n"
+            BODY=$(jq -n \
+              --argjson uid "$CLICKUP_MEMBER_ID" \
+              --arg text "$COMMENT" \
+              '{comment_text:$text, notify_all:false, assignee:$uid}')
+            RESP=$(curl -s -w "\n%{http_code}" -X POST "https://api.clickup.com/api/v2/task/${TASK_ID}/comment" \
+              -H "Authorization: $CLICKUP_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$BODY")
+            HTTP_CODE=$(echo "$RESP" | tail -n1)
+            echo "ClickUp summary (fallback) response code: $HTTP_CODE"
+          fi
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ClickUp response:"
+            echo "$RESP"
+            if [ "$HTTP_CODE" = "401" ]; then
+              echo "::error::ClickUp returned 401 (invalid token). Update GitHub secret CLICKUP_API_KEY with a valid ClickUp API token for this workspace."
+            fi
+          fi
+
+      - name: Finish
+        run: echo "Workflow completed successfully."
