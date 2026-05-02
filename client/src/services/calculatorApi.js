@@ -9,7 +9,7 @@ export async function evaluateExpression(expression, angleMode) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json.success) {
     const msg = json.error?.message || 'Calculation failed.';
-    const code = json.error?.code || 'ERROR';
+    const code = json.error?.code ?? 'ERROR';
     const err = new Error(msg);
     err.code = code;
     throw err;
@@ -26,7 +26,7 @@ export async function evaluateStructured(operation, operands, angleMode) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json.success) {
     const msg = json.error?.message || 'Calculation failed.';
-    const code = json.error?.code || 'ERROR';
+    const code = json.error?.code ?? 'ERROR';
     const err = new Error(msg);
     err.code = code;
     throw err;

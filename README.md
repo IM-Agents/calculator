@@ -74,10 +74,11 @@ All implementation planning documents are stored in `docs/`:
 - Graph plotting for advanced math workflows
 
 ## Server environment & security
-- **CORS:** Set `FRONTEND_URL` to the browser origin that talks to this API (default `http://localhost:5173`). Use a comma-separated list for multiple origins (for example staging and production).
-- **History file:** `HISTORY_PERSISTENCE_FILE` overrides the default JSON path. The file is gitignored; back it up if you rely on it in production.
+- **CORS:** Set `FRONTEND_URL` to the browser origin that talks to this API (default `http://localhost:5173`). Use a comma-separated list for multiple origins (for example staging and production). The server wires this into `cors({ origin: ... })` so browser access is not wide open.
+- **History file:** `HISTORY_PERSISTENCE_FILE` overrides the default JSON path. The file is gitignored; back it up if you rely on it in production. Startup load failures (missing file, invalid JSON, or I/O errors) are logged to stderr with the file path, then history starts empty.
 - **Request logs:** Access logs use the URL path only (no query string), so tokens or sensitive query parameters are not written to the console by default.
 - **Secrets:** Do not put API keys or tokens in the client bundle; keep them in server environment variables or a secret manager.
+- **CodeRabbit:** Path-scoped review rules target `client/src/` and `server/src/` (including `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, and `.cjs` where present), not legacy `frontend/` / `backend/` folder names.
 
 ## Notes
 - React UI must be fully responsive across **mobile, tablet, and desktop**.

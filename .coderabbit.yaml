@@ -15,7 +15,7 @@ reviews:
     - "!**/*.yml"
 
   path_instructions:
-    - path: "client/src/**/*.{js,jsx}"
+    - path: "client/src/**/*.{js,jsx,ts,tsx,mjs,cjs}"
       instructions: |
         This path is the React 18 + Vite calculator UI. Treat these as strict blocking rules for changed lines:
 
@@ -29,7 +29,7 @@ reviews:
 
         If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
 
-    - path: "server/src/**/*.js"
+    - path: "server/src/**/*.{js,mjs,cjs,ts,tsx}"
       instructions: |
         This path is the Node.js + Express calculator API. Blocking rules for changed lines:
 
@@ -42,7 +42,7 @@ reviews:
 
         If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
 
-    - path: "desktop/src/**/*.js"
+    - path: "desktop/src/**/*.{js,mjs,cjs,ts,tsx}"
       instructions: |
         This path is the Electron main process, preload, and renderer for the local print client. Blocking rules for changed lines:
 

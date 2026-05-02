@@ -35,7 +35,8 @@ function loadFromDisk() {
       angleMode: row.angleMode,
       timestamp: typeof row.timestamp === 'string' ? row.timestamp : new Date().toISOString(),
     }));
-  } catch {
+  } catch (err) {
+    console.error('[history] load failed:', dataFile, err?.message || err);
     entries = [];
   }
 }
