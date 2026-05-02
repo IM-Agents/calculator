@@ -67,7 +67,8 @@ function tryFlipBinaryOperatorBeforeLastNumber(str, lastNum) {
   const prevIdx = skipSpacesLeft(str, opIdx - 1);
   if (prevIdx < 0) return null;
   const prev = str[prevIdx];
-  if (!/[0-9)]/.test(prev)) return null;
+  // Binary +/- follows a value: literal, `)`, or end of identifier (same as parser operand).
+  if (!/[0-9)a-zA-Z]/i.test(prev)) return null;
   const flippedOp = op === '-' ? '+' : '-';
   return str.slice(0, opIdx) + flippedOp + str.slice(opIdx + 1);
 }

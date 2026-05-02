@@ -1,5 +1,5 @@
 # https://docs.coderabbit.ai/guides/configuration-overview
-# OMA monorepo: frontend (React/Vite), backend (Express/MySQL/Shopify/Socket.IO), desktop (Electron)
+# Scientific calculator: React/Vite frontend, Express backend (evaluate + session history)
 language: en-US
 
 reviews:
@@ -16,76 +16,56 @@ reviews:
   path_instructions:
     - path: "frontend/src/**/*.{js,jsx}"
       instructions: |
-        This path is the React 18 + Vite UI for Order Management Automation (OMA). Treat these as strict blocking rules for changed lines:
+        This path is the React 18 + Vite calculator UI. Treat these as strict blocking rules for changed lines:
 
-        - No ad-hoc `console.log` / `console.debug` / `console.info` in production paths; use an approved logger if the project adds one.
+        - No ad-hoc `console.log` / `console.debug` / `console.info` in production paths.
         - No unused variables, imports, or parameters in new/changed code.
-        - React lists (`.map`, etc.) must use a stable, unique `key` on the top-level element in the list.
-        - No inline object styles on JSX: disallow `style={{ ... }}`; use `frontend/src/styles/` or other CSS files consistent with this repo.
-        - API calls go through `frontend/src/services/api.js` (or follow the same axios patterns); new calls must handle errors (`.catch`, user-visible error state, or equivalent)—not silent failures.
-        - Socket usage should follow `frontend/src/services/socket.js` / hooks patterns; connection and message errors must be handled or surfaced.
-        - No hardcoded secrets, API keys, or tokens; Vite env vars must use the `VITE_` prefix only for client-safe values.
-        - Prefer shared components under `frontend/src/components/` and hooks under `frontend/src/hooks/` instead of duplicating non-trivial UI logic.
+        - React lists must use a stable, unique `key` on the top-level element in the list.
+        - No inline object styles on JSX (`style={{ ... }}`); use `frontend/src/styles/`.
+        - `fetch` to the calculator API (see `useCalculatorState.js`) must handle non-OK responses and surface errors to the user where appropriate—no silent failures.
+        - Expression editing helpers (`toggleTrailingNumberSign`, `validateExpression`, keyboard handling) must stay consistent with backend `parser.js` tokenization (numbers, identifiers, operators, parentheses).
+        - Sign toggle (`±`) must only rewrite when the trailing token is a numeric literal; binary `+/-` flip must treat identifiers and `)` as valid left operands, same as the parser.
+        - No hardcoded secrets; client-safe config uses `import.meta.env` / `VITE_` only as appropriate.
 
         If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
 
     - path: "backend/src/**/*.js"
       instructions: |
-        This path is the Node.js + Express API, MySQL access, Shopify webhooks, PDF/print services, and Socket.IO server for OMA. Blocking rules for changed lines:
+        This path is the Express API for evaluate + in-memory history (session cookie). Blocking rules for changed lines:
 
-        - Configuration must come from `backend/src/config/env.js` and environment variables—do not hardcode DB passwords, Shopify secrets, or deployment-specific hosts in source.
-        - Webhook and HMAC-sensitive routes must remain protected by the existing Shopify auth middleware (`shopifyAuth` / HMAC validation); do not bypass verification for convenience.
-        - Async route handlers and services must propagate errors to Express (`next(err)` or throw into async wrappers) or handle them explicitly—no empty `catch` blocks that hide failures.
-        - Database access must use parameterized queries / the existing models layer—no string-concatenated SQL with user-controlled input.
-        - New Socket.IO handlers must handle errors and avoid leaking internal stack traces to clients in production.
-        - No new dependencies on `eval`, `child_process` with untrusted input, or disabling security middleware without strong justification.
-        - Prefer `backend/src/services/` for business logic and keep controllers thin; avoid duplicating rule/PDF/print orchestration across files.
-
-        If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
-
-    - path: "desktop/src/**/*.js"
-      instructions: |
-        This path is the Electron main process, preload, and renderer for the local print client. Blocking rules for changed lines:
-
-        - Preload must expose APIs only via `contextBridge` + `ipcRenderer` patterns consistent with `desktop/src/preload.js`—do not enable `nodeIntegration` in renderer or expose raw Node APIs widely.
-        - IPC channel names and payloads should stay explicit; avoid passing executable code or unsanitized shell commands from renderer to main.
-        - Printer and socket configuration must not embed secrets; use `desktop/src/main/config.js` (or env) patterns.
-        - Main-process network and printer operations should handle errors without crashing the app; log failures in a way operators can diagnose.
-        - No `eval` / `Function` constructor with remote or user-controlled strings.
+        - Configuration from `backend/src/config/env.js` and environment variables only—no hardcoded secrets or host-specific credentials.
+        - `evaluateExpression` / `parser.js` / `mathHelpers.js`: preserve finite-result contracts (`normalizeNumber` must not return non-finite values); domain errors use structured errors with 4xx and safe messages.
+        - HTTP errors: 4xx responses may include specific client-facing messages; 5xx and uncaught internals must not leak raw exception text—use generic server error messages in middleware.
+        - Async route handlers must forward errors to Express (`next(err)`) or return structured JSON—no empty `catch` that hides failures.
+        - History routes must respect session boundaries; do not log or return other users' history.
+        - No `eval` or dynamic execution of user expressions outside the intentional parser path.
 
         If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
 
   pre_merge_checks:
     custom_checks:
-      - name: "OMA monorepo quality (frontend, backend, desktop)"
+      - name: "Calculator app quality (frontend + backend)"
         mode: error
         instructions: |
-          Pass/fail only from the PR diff and files touched in this PR.
+          Respond with exactly **PASS** or **FAIL** (no other outcomes). Base the decision only on the PR diff and touched files.
 
-          Scope: classify each touched file under `frontend/src/`, `backend/src/`, or `desktop/src/` and apply the matching rules below. Ignore unrelated paths (e.g. docs only) unless they embed secrets.
+          Classify each touched file under `frontend/src/` or `backend/src/`. Ignore unrelated paths (e.g. docs-only) unless they embed secrets.
 
-          **frontend/src (React / Vite)** — FAIL if changed code introduces or leaves:
-          1) Ad-hoc `console.log` / `console.debug` / `console.info` as permanent logging (excluding clearly marked temporary dev scaffolding).
+          **frontend/src** — FAIL if the diff introduces or leaves:
+          1) Ad-hoc `console.log` / `console.debug` / `console.info` as permanent logging.
           2) Unused variables, imports, or parameters in modified files.
-          3) List-rendered React elements without a proper `key` on the outermost element in that list.
-          4) Inline JSX styles `style={{` ... `}}` (except where a third-party API requires it—call that out).
-          5) New axios/fetch/socket flows without reachable error handling or user-visible failure behavior.
-          6) Hardcoded secrets or long-lived tokens in client source.
-          7) Obvious copy-paste duplication of non-trivial UI logic where a shared hook or component is appropriate.
+          3) List-rendered React elements without a proper `key` on the outermost list element.
+          4) Inline JSX styles `style={{` ... `}}` without strong justification.
+          5) New `fetch` usage without reachable error handling or user-visible failure behavior for failed requests.
+          6) Hardcoded secrets or tokens in client source.
+          7) Expression UI logic that can corrupt the displayed expression (e.g. sign toggle mutating a number when the last non-space token is not part of that number; binary `+/-` mis-detected after identifiers like `a-3`).
+          8) Client-side validation or formatting that disagrees with backend parsing for the same expression shape.
 
-          **backend/src (Express / MySQL / Shopify / Socket.IO)** — FAIL if changed code introduces or leaves:
-          1) Hardcoded credentials, Shopify webhook secrets, or DB passwords in source (must use env + `config/env.js` patterns).
-          2) Webhook routes that skip or weaken HMAC / Shopify auth validation.
-          3) SQL built by concatenating untrusted strings instead of parameters / ORM usage.
-          4) Async routes or services that swallow errors (empty catch, no `next(err)`, no structured response).
-          5) New sensitive operations without considering impact on print jobs, order state, or timeline consistency (call out risky partial updates).
+          **backend/src** — FAIL if the diff introduces or leaves:
+          1) Hardcoded credentials or secrets in source (must use env + `config/env.js`).
+          2) 5xx or internal error paths that return raw `Error.message` / stack details to API clients.
+          3) Parser or math helpers returning or accepting non-finite numbers where a finite result is required, including rounding overflow after scaling.
+          4) Async routes or services that swallow errors (empty catch, no `next(err)`, no JSON error body).
+          5) History or session handling that could mix data between sessions without clear mitigation.
 
-          **desktop/src (Electron)** — FAIL if changed code introduces or leaves:
-          1) Unsafe renderer exposure (e.g. broad Node access from renderer contrary to preload `contextBridge` pattern).
-          2) Secrets or API keys embedded in main/preload/renderer source.
-          3) IPC or shell usage that passes unsanitized user/remote input into execution contexts.
-          4) Printer/socket code paths with no error handling where failures would leave the app in a silent broken state.
-
-          PASS if none of the above apply to the changes in scope.
-
-          If information is insufficient to decide, respond Inconclusive and name the file or behavior needed.
+          If none of the above apply to the changes in scope, respond **PASS**. If any apply, respond **FAIL** and cite the rule number and file. If the diff is ambiguous, choose **FAIL** and state what evidence is missing—do not use Inconclusive or any third label.
