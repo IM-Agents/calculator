@@ -1,20 +1,12 @@
 import express from 'express';
 import cors from 'cors';
+import { env } from './config/env.js';
 import calculationRoutes from './routes/calculationRoutes.js';
 import historyRoutes from './routes/historyRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { sessionMiddleware } from './middleware/sessionMiddleware.js';
 
-function getAllowedCorsOrigins() {
-  const raw = process.env.CORS_ORIGIN;
-  if (typeof raw === 'string' && raw.trim()) {
-    const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
-    if (list.length > 0) return list;
-  }
-  return ['http://localhost:5173', 'http://localhost:3000'];
-}
-
-const allowedCorsOrigins = new Set(getAllowedCorsOrigins());
+const allowedCorsOrigins = new Set(env.corsOrigins);
 
 function corsOrigin(origin, callback) {
   if (!origin) {
