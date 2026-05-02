@@ -224,7 +224,6 @@ jobs:
 
           CLEAN_COMMENT=$(printf '%s\n' "$SOURCE_TEXT" \
             | sed '/<!--/,/-->/d' \
-            | sed '/<details>/,/<\/details>/d' \
             | sed '/^[[:space:]]*You are an autonomous coding agent/d' \
             | sed '/^[[:space:]]*Task:[[:space:]]*/d' \
             | sed '/^[[:space:]]*Branch:[[:space:]]*/d' \
