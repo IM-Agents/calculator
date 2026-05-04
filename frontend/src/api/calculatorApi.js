@@ -19,7 +19,10 @@ export async function evaluateOnServer(expression, angleMode) {
 export async function fetchHistory() {
   const res = await fetch('/api/calculator/history');
   const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body.success) return [];
+  if (!res.ok || !body.success) {
+    const msg = body.error?.message ?? 'Could not load history.';
+    throw new Error(msg);
+  }
   return body.data ?? [];
 }
 

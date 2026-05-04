@@ -115,14 +115,17 @@ export default function App() {
   const [lastWasEquals, setLastWasEquals] = useState(false);
   const [busy, setBusy] = useState(false);
   const requestInFlightRef = useRef(false);
+  const historyRequestIdRef = useRef(0);
   const exprRef = useRef('');
   exprRef.current = currentExpression;
 
   const displayValue = currentExpression || '0';
 
   const loadHistory = useCallback(async () => {
+    const requestId = ++historyRequestIdRef.current;
     try {
       const data = await fetchHistory();
+      if (requestId !== historyRequestIdRef.current) return;
       setHistory(data);
     } catch (err) {
       if (import.meta.env.DEV) {
@@ -248,6 +251,7 @@ export default function App() {
   const onHistoryClear = useCallback(async () => {
     try {
       await clearServerHistory();
+      historyRequestIdRef.current += 1;
       setHistory([]);
     } catch (e) {
       setError(e.message);

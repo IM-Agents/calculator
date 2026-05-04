@@ -325,8 +325,15 @@ jobs:
           Task: ${{ env.PROC_TASK_URL }}
           Branch: ${{ env.PROC_BRANCH }}"
 
-          # Plain JSON for PUT (updates always use comment_text so one body can be replaced each push).
-          UPDATE_JSON=$(jq -n --arg text "$BLOCK" '{comment_text:$text, notify_all:false}')
+          # Same shape as POST: rich @mention when CLICKUP_MEMBER_ID is set; else plain comment_text.
+          if [ -n "${CLICKUP_MEMBER_ID:-}" ]; then
+            UPDATE_JSON=$(jq -n \
+              --argjson uid "$CLICKUP_MEMBER_ID" \
+              --arg text "$BLOCK" \
+              '{comment: [ {type:"tag", user:{id:$uid}}, {text: (" " + $text)} ], notify_all:false}')
+          else
+            UPDATE_JSON=$(jq -n --arg text "$BLOCK" '{comment_text:$text, notify_all:false}')
+          fi
 
           PREV_COMMENT_ID=""
           if [ -f .clickup-cr-sync/comment_id ]; then
@@ -343,6 +350,16 @@ jobs:
               -d "$UPDATE_JSON")
             HTTP_CODE=$(echo "$RESP" | tail -n1)
             echo "ClickUp rolling comment PUT code: $HTTP_CODE"
+            if [ "$HTTP_CODE" != "200" ] && [ -n "${CLICKUP_MEMBER_ID:-}" ]; then
+              echo "Rich PUT failed; retrying with plain comment_text (no user tag)."
+              UPDATE_JSON=$(jq -n --arg text "$BLOCK" '{comment_text:$text, notify_all:false}')
+              RESP=$(curl -s -w "\n%{http_code}" -X PUT "https://api.clickup.com/api/v2/comment/${PREV_COMMENT_ID}" \
+                -H "Authorization: $CLICKUP_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$UPDATE_JSON")
+              HTTP_CODE=$(echo "$RESP" | tail -n1)
+              echo "ClickUp rolling comment PUT (plain) code: $HTTP_CODE"
+            fi
             if [ "$HTTP_CODE" = "200" ]; then
               SAVED_COMMENT_ID="$PREV_COMMENT_ID"
             else
