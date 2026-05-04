@@ -1,0 +1,89 @@
+.btn {
+  border: none;
+  border-radius: 12px;
+  min-height: 48px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease,
+    opacity 0.15s ease;
+  color: inherit;
+  outline: none;
+}
+
+.btn:focus-visible {
+  box-shadow: 0 0 0 3px #38bdf8;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wide {
+  grid-column: span 2;
+}
+
+.num {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.num:hover:not(:disabled) {
+  background: #475569;
+}
+
+.op {
+  background: #0ea5e9;
+  color: #0f172a;
+}
+
+.op:hover:not(:disabled) {
+  background: #38bdf8;
+}
+
+.action {
+  background: #f97316;
+  color: #0f172a;
+}
+
+.action:hover:not(:disabled) {
+  background: #fb923c;
+}
+
+.sci {
+  background: #1e3a5f;
+  color: #e0f2fe;
+  font-size: 0.9rem;
+}
+
+.sci:hover:not(:disabled) {
+  background: #2563a8;
+}
+
+.mem {
+  background: #312e81;
+  color: #e0e7ff;
+  font-size: 0.88rem;
+}
+
+.mem:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.equals {
+  background: #22c55e;
+  color: #052e16;
+  font-size: 1.15rem;
+}
+
+.equals:hover:not(:disabled) {
+  background: #4ade80;
+}

@@ -1,0 +1,29 @@
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.memRow,
+.sciRow,
+.mainRow,
+.bottomRow {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.memRow {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.sciRow {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.mainRow {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.bottomRow {
+  grid-template-columns: repeat(5, 1fr);
+}
