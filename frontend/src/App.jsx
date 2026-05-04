@@ -123,8 +123,10 @@ export default function App() {
     try {
       const data = await fetchHistory();
       setHistory(data);
-    } catch {
-      /* ignore offline */
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn('[calculator] fetchHistory failed', err);
+      }
     }
   }, []);
 

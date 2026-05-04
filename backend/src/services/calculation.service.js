@@ -6,27 +6,20 @@ import { addHistoryItem } from './history.service.js';
  * @param {'deg' | 'rad'} angleMode
  */
 export function evaluate(expression, angleMode) {
-  try {
-    const trimmed = String(expression).trim();
-    if (!trimmed) {
-      return {
-        ok: false,
-        error: {
-          code: 'INVALID_EXPRESSION',
-          message: 'Expression is required.',
-        },
-      };
-    }
-    const result = evaluateExpression(trimmed, angleMode);
-    addHistoryItem(trimmed, result);
+  const trimmed = String(expression).trim();
+  if (!trimmed) {
     return {
-      ok: true,
-      data: {
-        expression: trimmed,
-        result,
-        angleMode,
+      ok: false,
+      error: {
+        code: 'INVALID_EXPRESSION',
+        message: 'Expression is required.',
       },
     };
+  }
+
+  let result;
+  try {
+    result = evaluateExpression(trimmed, angleMode);
   } catch (e) {
     const { code, message } = mapParserError(e);
     return {
@@ -34,4 +27,25 @@ export function evaluate(expression, angleMode) {
       error: { code, message },
     };
   }
+
+  try {
+    addHistoryItem(trimmed, result);
+  } catch {
+    return {
+      ok: false,
+      error: {
+        code: 'HISTORY_WRITE_FAILED',
+        message: 'Could not persist calculation history.',
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    data: {
+      expression: trimmed,
+      result,
+      angleMode,
+    },
+  };
 }

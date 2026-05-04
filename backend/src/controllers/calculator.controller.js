@@ -27,7 +27,9 @@ export function postEvaluate(req, res) {
 
   const out = evaluate(expression, angleMode);
   if (!out.ok) {
-    return res.status(400).json({
+    const status =
+      out.error.code === 'HISTORY_WRITE_FAILED' ? 503 : 400;
+    return res.status(status).json({
       success: false,
       error: out.error,
     });
