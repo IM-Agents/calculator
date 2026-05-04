@@ -29,6 +29,13 @@ function appendOperator(expr, op) {
   const last = base.slice(-1);
   if (OP_CHARS.has(last) && OP_CHARS.has(op)) {
     if (op === '-' && '*/%^'.includes(last)) return base + op;
+    if (
+      last === '-' &&
+      op !== '-' &&
+      '*/%^'.includes(base.at(-2) ?? '')
+    ) {
+      return base.slice(0, -2) + op;
+    }
     return base.slice(0, -1) + op;
   }
   return base + op;
@@ -237,6 +244,23 @@ export default function App() {
 
   useEffect(() => {
     function onKeyDown(ev) {
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        document.contains(active)
+      ) {
+        if (active instanceof HTMLElement) {
+          if (active.isContentEditable) return;
+          const tag = active.tagName;
+          if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tag)) {
+            return;
+          }
+          if (tag === 'A' && active.hasAttribute('href')) return;
+          const tab = active.getAttribute('tabindex');
+          if (tab !== null && Number(tab) > 0) return;
+        }
+      }
       if (busy) return;
       if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
       const label = mapKeyToLabel(ev.key);
