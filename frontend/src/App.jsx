@@ -249,9 +249,9 @@ export default function App() {
   }, [applyButton, busy]);
 
   const onHistoryClear = useCallback(async () => {
+    historyRequestIdRef.current += 1;
     try {
       await clearServerHistory();
-      historyRequestIdRef.current += 1;
       setHistory([]);
     } catch (e) {
       setError(e.message);
