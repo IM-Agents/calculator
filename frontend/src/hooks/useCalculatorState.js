@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { postCalculate, getHistory, deleteHistory } from '../api/client'
 import { formatResult } from '../utils/formatDisplay'
 import {
@@ -26,15 +26,29 @@ export function useCalculatorState() {
   const [angleMode, setAngleMode] = useState(initialState.angleMode)
   const [busy, setBusy] = useState(false)
 
+  const latestInputsRef = useRef({ expression, angleMode })
+  const evaluateRequestIdRef = useRef(0)
+
+  useEffect(() => {
+    latestInputsRef.current = { expression, angleMode }
+  }, [expression, angleMode])
+
   const refreshHistory = useCallback(async () => {
-    const { body, ok } = await getHistory()
-    if (ok && body.success && Array.isArray(body.data?.items)) {
-      setHistory(body.data.items)
+    try {
+      const { body, ok } = await getHistory()
+      if (ok && body.success && Array.isArray(body.data?.items)) {
+        setHistory(body.data.items)
+        return
+      }
+      const msg = body.error?.message || 'Could not load history.'
+      setError(msg)
+    } catch {
+      setError('Network error. Is the API running?')
     }
   }, [])
 
   useEffect(() => {
-    refreshHistory()
+    void Promise.resolve().then(() => refreshHistory())
   }, [refreshHistory])
 
   const appendChar = useCallback((ch) => {
@@ -107,11 +121,20 @@ export function useCalculatorState() {
       setError('Enter an expression first.')
       return
     }
+    evaluateRequestIdRef.current += 1
+    const requestId = evaluateRequestIdRef.current
+    const sentExpression = expression
+    const sentAngleMode = angleMode
     setBusy(true)
     setError('')
     try {
       const payloadExpr = toApiExpression(expression)
       const { body, ok, status } = await postCalculate(payloadExpr, angleMode)
+      const staleInput =
+        sentExpression !== latestInputsRef.current.expression ||
+        sentAngleMode !== latestInputsRef.current.angleMode
+      const superseded = requestId !== evaluateRequestIdRef.current
+      if (staleInput || superseded) return
       if (ok && body.success) {
         const { result: r, expression: ex, historyItem } = body.data
         setResult(r)
@@ -133,16 +156,33 @@ export function useCalculatorState() {
       }
       setResult(null)
     } catch {
-      setError('Network error. Is the API running?')
-      setResult(null)
+      const staleInput =
+        sentExpression !== latestInputsRef.current.expression ||
+        sentAngleMode !== latestInputsRef.current.angleMode
+      const superseded = requestId !== evaluateRequestIdRef.current
+      if (!staleInput && !superseded) {
+        setError('Network error. Is the API running?')
+        setResult(null)
+      }
     } finally {
-      setBusy(false)
+      if (requestId === evaluateRequestIdRef.current) {
+        setBusy(false)
+      }
     }
   }, [expression, angleMode])
 
   const clearHistory = useCallback(async () => {
-    const { ok } = await deleteHistory()
-    if (ok) setHistory([])
+    try {
+      const { body, ok } = await deleteHistory()
+      if (ok) {
+        setHistory([])
+        return
+      }
+      const msg = body.error?.message || 'Could not clear history.'
+      setError(msg)
+    } catch {
+      setError('Network error. Is the API running?')
+    }
   }, [])
 
   const useHistoryExpression = useCallback((ex) => {

@@ -118,15 +118,15 @@ class Parser {
   }
 
   parseMultiplicative() {
-    let left = this.parseExponent();
+    let left = this.parseUnary();
     for (;;) {
       const c = this.peek();
       if (c === '*') {
         this.i += 1;
-        left = left * this.parseExponent();
+        left = left * this.parseUnary();
       } else if (c === '/') {
         this.i += 1;
-        const right = this.parseExponent();
+        const right = this.parseUnary();
         if (right === 0) {
           const err = new Error('Cannot divide by zero.');
           err.code = 'DIVISION_BY_ZERO';
@@ -135,7 +135,7 @@ class Parser {
         left = left / right;
       } else if (c === '%') {
         this.i += 1;
-        const right = this.parseExponent();
+        const right = this.parseUnary();
         left = (left * right) / 100;
       } else {
         break;
@@ -145,7 +145,7 @@ class Parser {
   }
 
   parseExponent() {
-    const left = this.parseUnary();
+    let left = this.parsePrimary();
     if (this.peek() === '^') {
       this.i += 1;
       const right = this.parseExponent();
@@ -164,7 +164,7 @@ class Parser {
       this.i += 1;
       return this.parseUnary();
     }
-    return this.parsePrimary();
+    return this.parseExponent();
   }
 
   parsePrimary() {

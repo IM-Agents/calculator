@@ -46,6 +46,7 @@
   .calculator-main {
     --calc-surface: #1a1d27;
     --calc-border: #2a3142;
+
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
   }
 }
