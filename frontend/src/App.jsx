@@ -114,6 +114,7 @@ export default function App() {
   const [memoryValue, setMemoryValue] = useState(null);
   const [lastWasEquals, setLastWasEquals] = useState(false);
   const [busy, setBusy] = useState(false);
+  const requestInFlightRef = useRef(false);
   const exprRef = useRef('');
   exprRef.current = currentExpression;
 
@@ -136,6 +137,8 @@ export default function App() {
 
   const applyButton = useCallback(
     async (label) => {
+      const isAsyncAction = label === '=' || label === 'M+' || label === 'M-';
+      if (isAsyncAction && requestInFlightRef.current) return;
       setError(null);
 
       if (label === 'AC') {
@@ -179,6 +182,7 @@ export default function App() {
       if (label === 'M+' || label === 'M-') {
         const src = exprRef.current.trim();
         if (!src) return;
+        requestInFlightRef.current = true;
         setBusy(true);
         try {
           const data = await evaluateOnServer(src, angleMode);
@@ -192,6 +196,7 @@ export default function App() {
         } catch (e) {
           setError(e.message);
         } finally {
+          requestInFlightRef.current = false;
           setBusy(false);
         }
         return;
@@ -199,6 +204,7 @@ export default function App() {
       if (label === '=') {
         const src = exprRef.current.trim();
         if (!src) return;
+        requestInFlightRef.current = true;
         setBusy(true);
         try {
           const data = await evaluateOnServer(src, angleMode);
@@ -210,6 +216,7 @@ export default function App() {
           setError(e.message);
           setLastWasEquals(false);
         } finally {
+          requestInFlightRef.current = false;
           setBusy(false);
         }
         return;
