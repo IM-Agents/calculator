@@ -1,4 +1,7 @@
 export function hasDoubleDecimalInLastToken(expression) {
+  if (expression == null) {
+    return false;
+  }
   let j = expression.length - 1;
   while (j >= 0 && /[0-9.]/.test(expression[j])) j -= 1;
   const token = expression.slice(j + 1);

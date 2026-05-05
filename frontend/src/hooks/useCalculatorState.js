@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toggleTrailingNumberSign } from '../utils/toggleTrailingNumberSign.js';
 import { hasDoubleDecimalInLastToken, isEmptyForEvaluate } from '../utils/validateExpression.js';
 
@@ -12,16 +12,27 @@ export function useCalculatorState() {
   const [memoryValue, setMemoryValue] = useState(0);
   const [history, setHistory] = useState([]);
   const [justEvaluated, setJustEvaluated] = useState(false);
+  const evaluateRequestIdRef = useRef(0);
+  const evaluateAbortRef = useRef(null);
 
   const refreshHistory = useCallback(async () => {
     try {
       const res = await fetch(`${API}/history`, { credentials: 'include' });
-      const json = await res.json();
-      if (json.success && json.data?.items) {
-        setHistory(json.data.items);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
-    } catch {
-      /* offline: keep local history */
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error?.message || 'History request failed.');
+      }
+      if (json.data?.items) {
+        setHistory(json.data.items);
+        return;
+      }
+      throw new Error('History items payload is missing.');
+    } catch (err) {
+      const details = err instanceof Error ? err.message : String(err);
+      setError((prev) => prev || `Could not refresh history: ${details}`);
     }
   }, []);
 
@@ -44,6 +55,7 @@ export function useCalculatorState() {
 
   const backspace = useCallback(() => {
     setError('');
+    setResult(null);
     setJustEvaluated(false);
     setExpression((prev) => prev.slice(0, -1));
   }, []);
@@ -63,6 +75,12 @@ export function useCalculatorState() {
   }, []);
 
   const evaluate = useCallback(async () => {
+    const requestId = evaluateRequestIdRef.current + 1;
+    evaluateRequestIdRef.current = requestId;
+    evaluateAbortRef.current?.abort();
+    const controller = new AbortController();
+    evaluateAbortRef.current = controller;
+
     setError('');
     if (isEmptyForEvaluate(expression)) {
       setError('Enter an expression first.');
@@ -74,8 +92,12 @@ export function useCalculatorState() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expression, angleMode }),
+        signal: controller.signal,
       });
       const json = await res.json();
+      if (requestId !== evaluateRequestIdRef.current) {
+        return;
+      }
       if (!json.success) {
         const msg = json.error?.message || 'Could not evaluate.';
         setError(msg);
@@ -87,11 +109,17 @@ export function useCalculatorState() {
       setExpression(String(json.data.expression ?? expression));
       setJustEvaluated(true);
       await refreshHistory();
-    } catch {
-      setError('Network error. Is the API running?');
+    } catch (err) {
+      if (controller.signal.aborted || requestId !== evaluateRequestIdRef.current) {
+        return;
+      }
+      const details = err instanceof Error ? err.message : String(err);
+      setError(`Network error. Is the API running? (${details})`);
       setResult(null);
     }
   }, [angleMode, expression, refreshHistory]);
+
+  useEffect(() => () => evaluateAbortRef.current?.abort(), []);
 
   const toggleAngleMode = useCallback(() => {
     setAngleMode((m) => (m === 'DEG' ? 'RAD' : 'DEG'));

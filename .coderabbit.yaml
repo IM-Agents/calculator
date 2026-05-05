@@ -47,11 +47,15 @@ reviews:
       - name: "Calculator app quality (frontend + backend)"
         mode: error
         instructions: |
-          Respond with exactly **PASS** or **FAIL** (no other outcomes). Base the decision only on the PR diff and touched files.
+          Respond using this exact contract:
+          - First line must be exactly `PASS` or `FAIL`.
+          - If first line is `PASS`, do not include any additional text.
+          - If first line is `FAIL`, add one bullet per issue using: `- rule <section>.<number> in <file>: <brief reason>`.
+          Base the decision only on the PR diff and touched files.
 
           Classify each touched file under `frontend/src/` or `backend/src/`. Ignore unrelated paths (e.g. docs-only) unless they embed secrets.
 
-          **frontend/src** — FAIL if the diff introduces or leaves:
+          **frontend/src** — mark `FAIL` if the diff introduces or leaves:
           1) Ad-hoc `console.log` / `console.debug` / `console.info` as permanent logging.
           2) Unused variables, imports, or parameters in modified files.
           3) List-rendered React elements without a proper `key` on the outermost list element.
@@ -61,11 +65,13 @@ reviews:
           7) Expression UI logic that can corrupt the displayed expression (e.g. sign toggle mutating a number when the last non-space token is not part of that number; binary `+/-` mis-detected after identifiers like `a-3`).
           8) Client-side validation or formatting that disagrees with backend parsing for the same expression shape.
 
-          **backend/src** — FAIL if the diff introduces or leaves:
+          **backend/src** — mark `FAIL` if the diff introduces or leaves:
           1) Hardcoded credentials or secrets in source (must use env + `config/env.js`).
           2) 5xx or internal error paths that return raw `Error.message` / stack details to API clients.
           3) Parser or math helpers returning or accepting non-finite numbers where a finite result is required, including rounding overflow after scaling.
           4) Async routes or services that swallow errors (empty catch, no `next(err)`, no JSON error body).
           5) History or session handling that could mix data between sessions without clear mitigation.
 
-          If none of the above apply to the changes in scope, respond **PASS**. If any apply, respond **FAIL** and cite the rule number and file. If the diff is ambiguous, choose **FAIL** and state what evidence is missing—do not use Inconclusive or any third label.
+          If none of the above apply to the changes in scope, respond with `PASS` only.
+          If any apply, respond with `FAIL` on the first line, then include the issue bullets in the required format with rule number and file.
+          If the diff is ambiguous, choose `FAIL` and include what evidence is missing in the relevant bullet reason—do not use any third label.

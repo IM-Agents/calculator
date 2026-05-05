@@ -135,6 +135,7 @@ jobs:
         if: steps.skip_check.outputs.should_skip != 'true'
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           TASK_ID=""
           PROC_BRANCH=""
@@ -163,10 +164,12 @@ jobs:
           }
 
           PROC_FILE="process.md"
-          if [ -f "$PROC_FILE" ]; then
-            echo "Parsing $PROC_FILE for clickup_task and branch."
-            PROC_BRANCH=$(proc_get branch "$PROC_FILE" || true)
-            PROC_TASK_RAW=$(proc_get clickup_task "$PROC_FILE" || true)
+          TRUSTED_PROC_FILE="$(mktemp)"
+          if git fetch --no-tags --depth=1 origin "$BASE_REF" >/dev/null 2>&1 \
+            && git show "origin/${BASE_REF}:${PROC_FILE}" > "$TRUSTED_PROC_FILE" 2>/dev/null; then
+            echo "Parsing trusted ${PROC_FILE} from base branch ${BASE_REF}."
+            PROC_BRANCH=$(proc_get branch "$TRUSTED_PROC_FILE" || true)
+            PROC_TASK_RAW=$(proc_get clickup_task "$TRUSTED_PROC_FILE" || true)
             if [ -n "$PROC_TASK_RAW" ]; then
               if echo "$PROC_TASK_RAW" | grep -qi 'clickup\.com'; then
                 TASK_ID=$(id_from_clickup_string "$PROC_TASK_RAW")
@@ -179,12 +182,13 @@ jobs:
                 fi
               fi
               if [ -n "$TASK_ID" ]; then
-                echo "ClickUp task id from $PROC_FILE: $TASK_ID"
+                echo "ClickUp task id from trusted ${PROC_FILE}: $TASK_ID"
               fi
             fi
           else
-            echo "process.md not found at repo root."
+            echo "Trusted ${PROC_FILE} not found/readable in base branch ${BASE_REF}."
           fi
+          rm -f "$TRUSTED_PROC_FILE"
 
           if [ -z "$TASK_ID" ]; then
             echo "No clickup_task in process.md; skipping ClickUp validation and comments."
