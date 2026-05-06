@@ -2,12 +2,18 @@ import { evaluateExpression } from "../utils/parser.js";
 import { addHistoryItem } from "./historyService.js";
 
 export function calculate(expression, angleMode) {
-  const result = evaluateExpression(expression, angleMode);
-  const historyItem = addHistoryItem({ expression: expression.trim(), result });
-  return {
-    expression: expression.trim(),
+  const trimmedExpression = expression.trim();
+  const normalizedAngleMode = angleMode === "RAD" ? "RAD" : "DEG";
+  const result = evaluateExpression(trimmedExpression, normalizedAngleMode);
+  const historyItem = addHistoryItem({
+    expression: trimmedExpression,
     result,
-    angleMode: angleMode === "RAD" ? "RAD" : "DEG",
+    angleMode: normalizedAngleMode,
+  });
+  return {
+    expression: trimmedExpression,
+    result,
+    angleMode: normalizedAngleMode,
     historyItem,
   };
 }

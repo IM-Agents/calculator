@@ -21,10 +21,10 @@
   --radius-md: 12px;
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
   font-family:
-    "Inter",
+    Inter,
     system-ui,
     -apple-system,
-    Segoe UI,
+    "Segoe UI",
     Roboto,
     Helvetica,
     Arial,

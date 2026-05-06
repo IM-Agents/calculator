@@ -23,3 +23,11 @@ test("postfix percentage divides preceding primary by 100", () => {
 test("division by zero throws", () => {
   assert.throws(() => evaluateExpression("1/0", "DEG"), /DIVISION_BY_ZERO/);
 });
+
+test("unary minus binds looser than exponentiation (-2^2 === -4)", () => {
+  assert.equal(evaluateExpression("-2^2", "DEG"), -4);
+});
+
+test("multiplication with negative power operand groups exponent first (2*-3^2 === -18)", () => {
+  assert.equal(evaluateExpression("2*-3^2", "DEG"), -18);
+});

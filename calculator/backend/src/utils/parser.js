@@ -110,13 +110,13 @@ export class ExpressionEvaluator {
   }
 
   parseMulDiv() {
-    let left = this.parsePower();
+    let left = this.parseUnary();
     while (true) {
       const t = this.peek();
       if (!t || t.type !== "OP" || (t.value !== "*" && t.value !== "/")) break;
       const op = t.value;
       this.consume("OP");
-      const right = this.parsePower();
+      const right = this.parseUnary();
       if (op === "*") {
         left = left * right;
       } else {
@@ -129,11 +129,11 @@ export class ExpressionEvaluator {
   }
 
   parsePower() {
-    let left = this.parseUnary();
+    let left = this.parsePostfix();
     const t = this.peek();
     if (t?.type === "OP" && t.value === "^") {
       this.consume("OP", "^");
-      const right = this.parsePower();
+      const right = this.parseUnary();
       left = Math.pow(left, right);
       assertFinite(left);
     }
@@ -150,7 +150,7 @@ export class ExpressionEvaluator {
       this.consume("OP", "-");
       return -this.parseUnary();
     }
-    return this.parsePostfix();
+    return this.parsePower();
   }
 
   parsePostfix() {
