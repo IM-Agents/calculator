@@ -1,17 +1,101 @@
-# Calculator
+# Calculator Web Application
 
-Documentation has been added under /docs on branch Saturday_test_task_three.
+## Project Summary
+A responsive calculator web application with a React frontend and Node.js backend. The product supports basic arithmetic, scientific calculations, memory functions, angle mode switching, and a rolling calculation history.
 
-## Application behavior (CodeRabbit follow-ups)
+## Recommended Stack
+- **Frontend:** React 18, Vite, plain CSS (responsive mobile/tablet/desktop design)
+- **Backend:** Node.js 24.13.1, Express.js
+- **Data Storage:** In-memory history for V1, with optional local persistence or database-backed persistence later
+- **API Style:** REST
+- **Testing:** Vitest/React Testing Library (frontend), Node test runner or Jest/Supertest (backend)
 
-- **POST `/api/calculate`** rejects missing, null, and blank or whitespace-only `expression` values with HTTP 400 and `EMPTY_EXPRESSION` / `INVALID_EXPRESSION` so empty input never reaches evaluation as a 500.
-- **History** items include a stable **`id`** (UUID) from the server; the history list keys rows by that id only.
-- **History scope:** calculation history is stored **per browser session**. The API sets an HttpOnly `calc_sid` cookie (UUID); `GET`/`DELETE` `/api/history` and new entries from `POST` `/api/calculate` use that session. The SPA sends `credentials: 'include'` on API calls so the cookie is honored through the dev proxy. Buckets are capped in memory to limit abuse.
-- **± (sign toggle)** on the in-progress expression: if the last number is preceded by a **binary** `+` or `-` (e.g. `5-3`, `10+2`), that operator is flipped so the pair toggles as `5+3` / `10-2`. Otherwise the last numeric literal is negated (e.g. `2*3` → `2*-3`, `-5` → `5`), with a small merge when a unary `-` would stack awkwardly.
-- **“Empty” for evaluate** treats only `null`/`undefined` or strings empty after trim as empty; numeric **0** is never treated as empty.
+## Why This Stack
+- React gives fast UI rendering and component modularity.
+- Node.js fits the requirement for a lightweight backend API.
+- Plain CSS keeps external dependencies minimal.
+- Express is the smallest practical backend layer for clean controller/service separation.
 
-## Security notes
+## Recommended Project Structure
+```text
+calculator/
+├─ frontend/
+│  ├─ src/
+│  │  ├─ components/
+│  │  │  ├─ Calculator.jsx
+│  │  │  ├─ Display.jsx
+│  │  │  ├─ ButtonGrid.jsx
+│  │  │  ├─ HistoryPanel.jsx
+│  │  │  └─ ModeToggle.jsx
+│  │  ├─ hooks/
+│  │  │  └─ useKeyboardInput.js
+│  │  ├─ utils/
+│  │  │  ├─ formatDisplay.js
+│  │  │  └─ validateExpression.js
+│  │  ├─ styles/
+│  │  │  ├─ app.css
+│  │  │  └─ calculator.css
+│  │  ├─ App.jsx
+│  │  └─ main.jsx
+│  └─ package.json
+├─ backend/
+│  ├─ src/
+│  │  ├─ controllers/
+│  │  │  ├─ calculationController.js
+│  │  │  └─ historyController.js
+│  │  ├─ services/
+│  │  │  ├─ calculationService.js
+│  │  │  └─ historyService.js
+│  │  ├─ routes/
+│  │  │  ├─ calculationRoutes.js
+│  │  │  └─ historyRoutes.js
+│  │  ├─ middleware/
+│  │  │  └─ errorHandler.js
+│  │  ├─ utils/
+│  │  │  ├─ parser.js
+│  │  │  └─ mathHelpers.js
+│  │  ├─ app.js
+│  │  └─ server.js
+│  └─ package.json
+└─ docs/
+   ├─ README.md
+   ├─ 01-project-description.md
+   ├─ 02-functional-specification.md
+   ├─ 03-frontend-architecture.md
+   ├─ 04-backend-architecture.md
+   ├─ 05-database-schema.md
+   ├─ 06-api-specification.md
+   └─ 07-development-tasks.md
+```
 
-- **CORS:** With `credentials: true`, the API must not reflect arbitrary `Origin` headers. Set **`CORS_ORIGIN`** to a comma-separated allowlist (for example `https://app.example.com` or `http://localhost:5173,http://127.0.0.1:5173`). If unset, only common local dev origins (`http://localhost:5173`, `http://localhost:3000`) are accepted.
-- No secrets are embedded in the client; the session id is an opaque UUID in an HttpOnly cookie, not echoed in JSON bodies.
-- Expression input is validated at the controller (trim, empty check) and again in the parser (character whitelist, structure).
+## Key Product Capabilities
+- Basic arithmetic: add, subtract, multiply, divide
+- Scientific operations: percentage, square root, exponents, sign toggle
+- Trigonometric functions: sin, cos, tan with Degree/Radian toggle
+- Logarithmic functions: log10 and natural log
+- Constants: pi and e
+- Memory operations: M+, M−, MR, MC
+- Last 10 calculations history
+- Keyboard and button input support
+- User-friendly validation and error handling
+
+## V1 Delivery Guidance
+- Prefer frontend-managed state for current input, memory value, history list, and angle mode.
+- Use backend calculation APIs for safe expression evaluation and standardized error handling.
+- Keep history persistence optional for V1; in-memory on backend plus frontend mirror is enough unless persistence is explicitly needed.
+- Avoid `eval`; use a controlled parser/evaluation service.
+
+## Suggested Improvement
+Although the PRD allows either Node API evaluation or controlled logic, the better V1 path is:
+- **Use controlled backend evaluation** for consistency, validation, and future persistence support.
+- Keep the frontend responsible for interaction/state/display only.
+
+## Deliverables Included In Docs
+- Product description
+- Functional and non-functional specification
+- Frontend architecture
+- Backend architecture
+- Database/history design
+- API contract
+- Step-by-step development tasks
+- ClickUp-ready implementation breakdown
