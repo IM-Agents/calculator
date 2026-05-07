@@ -11,6 +11,18 @@ on:
   pull_request_review:
     types: [submitted, edited]
 
+  issue_comment:
+    types: [created, edited]
+
+  pull_request_review_comment:
+    types: [created, edited]
+
+  check_suite:
+    types: [completed]
+
+  check_run:
+    types: [completed]
+
 jobs:
   coderabbit_auto_fix:
     runs-on: ubuntu-latest
