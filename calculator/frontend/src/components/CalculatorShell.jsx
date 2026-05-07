@@ -30,10 +30,6 @@ export default function CalculatorShell() {
 
   useKeyboardInput(keyboardHandlers, !calc.busy);
 
-  function onOperator(sym) {
-    calc.appendSymbol(sym);
-  }
-
   return (
     <div className="calculator-page">
       <div className="container">
@@ -65,7 +61,7 @@ export default function CalculatorShell() {
             <ButtonGrid
               onDigit={calc.appendDigit}
               onDot={calc.appendDot}
-              onOperator={onOperator}
+              onOperator={calc.appendSymbol}
               onEquals={calc.evaluate}
               onClear={calc.handleClear}
               onBackspace={calc.handleBackspace}
