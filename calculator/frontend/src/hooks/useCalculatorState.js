@@ -26,14 +26,26 @@ export function useCalculatorState() {
   const [busy, setBusy] = useState(false);
 
   const refreshHistory = useCallback(async () => {
-    const res = await fetchHistory();
-    setHistory(mapHistoryEntries(res));
+    try {
+      const res = await fetchHistory();
+      setHistory(mapHistoryEntries(res));
+    } catch (err) {
+      console.error('Failed to refresh history:', err);
+      setHistory([]);
+      setError('Unable to refresh history.');
+    }
   }, []);
 
   const refreshMemory = useCallback(async () => {
-    const res = await fetchMemory();
-    if (res.success && res.data && typeof res.data.memoryValue === 'number') {
-      setMemoryValue(res.data.memoryValue);
+    try {
+      const res = await fetchMemory();
+      if (res.success && res.data && typeof res.data.memoryValue === 'number') {
+        setMemoryValue(res.data.memoryValue);
+      }
+    } catch (err) {
+      console.error('Failed to refresh memory:', err);
+      setMemoryValue(0);
+      setError('Unable to refresh memory.');
     }
   }, []);
 
@@ -150,29 +162,39 @@ export function useCalculatorState() {
   }, [angleMode, expression, refreshHistory]);
 
   const clearHistory = useCallback(async () => {
-    await clearHistoryRemote();
-    await refreshHistory();
+    try {
+      await clearHistoryRemote();
+      await refreshHistory();
+    } catch (err) {
+      console.error('Failed to clear history:', err);
+      setError('Unable to clear history.');
+    }
   }, [refreshHistory]);
 
   const memoryAction = useCallback(
     async (action) => {
-      const value = memoryOperandValue(expression, displayResult, pendingFreshNumber);
-      if ((action === 'M+' || action === 'M-') && !Number.isFinite(value)) {
-        setError('Evaluate the expression first or enter a single number before using M+ / M−.');
-        return;
-      }
-      const payloadValue = action === 'MR' || action === 'MC' ? 0 : value;
-      const res = await applyMemory(action, payloadValue);
-      if (res.success && res.data) {
-        setMemoryValue(res.data.memoryValue);
-        if (action === 'MR') {
-          setPendingFreshNumber(true);
-          setExpression(String(res.data.memoryValue));
-          setDisplayResult('');
-          setError('');
+      try {
+        const value = memoryOperandValue(expression, displayResult, pendingFreshNumber);
+        if ((action === 'M+' || action === 'M-') && !Number.isFinite(value)) {
+          setError('Evaluate the expression first or enter a single number before using M+ / M−.');
+          return;
         }
-      } else {
-        setError(res.error?.message || 'Memory operation failed.');
+        const payloadValue = action === 'MR' || action === 'MC' ? 0 : value;
+        const res = await applyMemory(action, payloadValue);
+        if (res.success && res.data) {
+          setMemoryValue(res.data.memoryValue);
+          if (action === 'MR') {
+            setPendingFreshNumber(true);
+            setExpression(String(res.data.memoryValue));
+            setDisplayResult('');
+            setError('');
+          }
+        } else {
+          setError(res.error?.message || 'Memory operation failed.');
+        }
+      } catch (err) {
+        console.error('Failed to apply memory action:', err);
+        setError('Unable to complete memory operation.');
       }
     },
     [expression, displayResult, pendingFreshNumber],

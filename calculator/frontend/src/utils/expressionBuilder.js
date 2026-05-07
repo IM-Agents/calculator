@@ -12,7 +12,7 @@ export function applyPercentToLastNumber(expression) {
 export function toggleSign(expression) {
   if (!expression) return expression;
   if (expression.endsWith(')')) {
-    return expression.startsWith('-(') ? expression.slice(2) : `-${expression}`;
+    return expression.startsWith('-(') ? expression.slice(1) : `-${expression}`;
   }
   const m = expression.match(/(-?)(\d+\.?\d*)$/);
   if (!m) return expression;
