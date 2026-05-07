@@ -30,7 +30,7 @@ export function memoryOperandValue(expression, displayResult, pendingFreshNumber
     return Number(displayResult);
   }
   const trimmed = expression.trim();
-  if (/^-?\d+\.?\d*$/.test(trimmed)) {
+  if (/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(trimmed)) {
     return Number.parseFloat(trimmed);
   }
   return NaN;
