@@ -32,5 +32,5 @@ export function postHistory(req, res) {
 
 export function deleteHistory(_req, res) {
   historyService.clearHistory();
-  return res.json({ success: true, message: 'History cleared successfully' });
+  return res.json({ success: true, data: null });
 }

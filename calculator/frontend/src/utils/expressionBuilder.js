@@ -6,7 +6,7 @@ export function appendChar(expression, char, options = {}) {
 
 export function applyPercentToLastNumber(expression) {
   if (!expression || !expression.trim()) return expression;
-  return expression.replace(/(\d+\.?\d*)$/, '($1/100)');
+  return expression.replace(/(\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)$/, '($1/100)');
 }
 
 export function toggleSign(expression) {
