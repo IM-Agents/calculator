@@ -1,4 +1,4 @@
-export default function HistoryPanel({ items, onClear }) {
+export default function HistoryPanel({ items = [], onClear }) {
   return (
     <aside className="history-panel" aria-label="Calculation history">
       <header className="history-panel__header">

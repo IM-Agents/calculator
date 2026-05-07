@@ -1,11 +1,22 @@
 const MAX = 10;
-const entries = [];
+const sessionEntries = new Map();
 
-export function listHistory() {
-  return [...entries];
+function normalizeSessionId(sessionId) {
+  return sessionId || 'default';
 }
 
-export function addHistory(expression, result) {
+function getEntries(sessionId) {
+  const key = normalizeSessionId(sessionId);
+  if (!sessionEntries.has(key)) sessionEntries.set(key, []);
+  return sessionEntries.get(key);
+}
+
+export function listHistory(sessionId) {
+  return [...getEntries(sessionId)];
+}
+
+export function addHistory(sessionId, expression, result) {
+  const entries = getEntries(sessionId);
   entries.unshift({
     expression,
     result,
@@ -14,6 +25,7 @@ export function addHistory(expression, result) {
   while (entries.length > MAX) entries.pop();
 }
 
-export function clearHistory() {
-  entries.length = 0;
+export function clearHistory(sessionId) {
+  const key = normalizeSessionId(sessionId);
+  sessionEntries.delete(key);
 }

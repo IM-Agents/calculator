@@ -10,9 +10,16 @@ export function postMemory(req, res) {
     const next = memoryService.applyMemoryAction(action, value);
     return res.json({ success: true, data: { memoryValue: next } });
   } catch (err) {
-    return res.status(400).json({
+    if (err?.message === 'VALIDATION_ERROR' || err?.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid memory action or value.' },
+      });
+    }
+    console.error('Unexpected memory operation error:', err);
+    return res.status(500).json({
       success: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Invalid memory action or value.' },
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error.' },
     });
   }
 }

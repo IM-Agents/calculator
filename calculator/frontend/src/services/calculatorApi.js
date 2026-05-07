@@ -1,4 +1,9 @@
 const BASE = '/api/v1';
+const DEFAULT_TIMEOUT_MS = 10_000;
+
+function fetchWithTimeout(url, options = {}) {
+  return fetch(url, { signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS), ...options });
+}
 
 async function parseJson(res) {
   const text = await res.text();
@@ -10,7 +15,7 @@ async function parseJson(res) {
 }
 
 export async function calculateExpression(expression, angleMode) {
-  const res = await fetch(`${BASE}/calculate`, {
+  const res = await fetchWithTimeout(`${BASE}/calculate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ expression, angleMode }),
@@ -19,22 +24,22 @@ export async function calculateExpression(expression, angleMode) {
 }
 
 export async function fetchHistory() {
-  const res = await fetch(`${BASE}/history`);
+  const res = await fetchWithTimeout(`${BASE}/history`);
   return parseJson(res);
 }
 
 export async function clearHistoryRemote() {
-  const res = await fetch(`${BASE}/history`, { method: 'DELETE' });
+  const res = await fetchWithTimeout(`${BASE}/history`, { method: 'DELETE' });
   return parseJson(res);
 }
 
 export async function fetchMemory() {
-  const res = await fetch(`${BASE}/memory`);
+  const res = await fetchWithTimeout(`${BASE}/memory`);
   return parseJson(res);
 }
 
 export async function applyMemory(action, value) {
-  const res = await fetch(`${BASE}/memory`, {
+  const res = await fetchWithTimeout(`${BASE}/memory`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, value }),

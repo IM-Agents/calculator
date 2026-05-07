@@ -1,6 +1,7 @@
 export function toRadians(value, angleMode) {
   if (angleMode === 'rad') return value;
-  return (value * Math.PI) / 180;
+  if (angleMode === 'deg') return (value * Math.PI) / 180;
+  throw new Error(`toRadians invalid angleMode "${angleMode}": expected "rad" or "deg"`);
 }
 
 export function sinWrapped(value, angleMode) {

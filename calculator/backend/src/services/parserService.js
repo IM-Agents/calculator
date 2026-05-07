@@ -71,6 +71,22 @@ function tokenize(input) {
         if (dots > 1) throw new Error('INVALID_EXPRESSION');
         i++;
       }
+      if (i < s.length && (s[i] === 'e' || s[i] === 'E')) {
+        const exponentStart = i;
+        i++;
+        if (i < s.length && (s[i] === '+' || s[i] === '-')) i++;
+        const exponentDigitsStart = i;
+        while (i < s.length && s[i] >= '0' && s[i] <= '9') i++;
+        if (exponentDigitsStart === i) {
+          throw new Error('INVALID_EXPRESSION');
+        }
+        if (i < s.length && s[i] === '.') {
+          throw new Error('INVALID_EXPRESSION');
+        }
+        if (exponentStart === start) {
+          throw new Error('INVALID_EXPRESSION');
+        }
+      }
       const raw = s.slice(start, i);
       tokens.push({ type: 'NUMBER', value: Number.parseFloat(raw) });
       continue;

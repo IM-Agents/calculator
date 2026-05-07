@@ -12,7 +12,25 @@ export function applyPercentToLastNumber(expression) {
 export function toggleSign(expression) {
   if (!expression) return expression;
   if (expression.endsWith(')')) {
-    return expression.startsWith('-(') ? expression.slice(1) : `-${expression}`;
+    let balance = 0;
+    let openIndex = -1;
+    for (let i = expression.length - 1; i >= 0; i--) {
+      const ch = expression[i];
+      if (ch === ')') balance++;
+      if (ch === '(') {
+        balance--;
+        if (balance === 0) {
+          openIndex = i;
+          break;
+        }
+      }
+    }
+    if (openIndex !== -1) {
+      const suffixStart = openIndex > 0 && expression[openIndex - 1] === '-' ? openIndex - 1 : openIndex;
+      const suffix = expression.slice(suffixStart);
+      const toggledSuffix = suffix.startsWith('-(') ? suffix.slice(1) : `-${suffix}`;
+      return expression.slice(0, suffixStart) + toggledSuffix;
+    }
   }
   const m = expression.match(/(-?)((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/);
   if (!m) return expression;

@@ -2,6 +2,10 @@ import { calculate } from '../services/calculationService.js';
 import * as historyService from '../services/historyService.js';
 import { validateCalculateBody } from '../validators/calculationValidator.js';
 
+function getSessionId(req) {
+  return req.get('x-session-id') || req.ip;
+}
+
 export function postCalculate(req, res) {
   const validation = validateCalculateBody(req.body);
   if (!validation.ok) {
@@ -19,7 +23,7 @@ export function postCalculate(req, res) {
     angleMode: validation.angleMode,
   });
   if (result.success && result.data) {
-    historyService.addHistory(result.data.expression, result.data.result);
+    historyService.addHistory(getSessionId(req), result.data.expression, result.data.result);
   }
   const status = result.success ? 200 : 400;
   return res.status(status).json(result);

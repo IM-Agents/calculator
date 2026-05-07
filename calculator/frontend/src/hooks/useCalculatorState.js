@@ -153,6 +153,10 @@ export function useCalculatorState() {
       } else if (res.error) {
         setDisplayResult('');
         setError(res.error.message || 'Calculation failed.');
+      } else {
+        setDisplayResult('');
+        setError('No result returned from server.');
+        setPendingFreshNumber(false);
       }
     } catch {
       setError('Unable to reach the calculator service.');

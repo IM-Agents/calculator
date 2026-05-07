@@ -1,7 +1,12 @@
 import * as historyService from '../services/historyService.js';
 
+function getSessionId(req) {
+  return req.get('x-session-id') || req.ip;
+}
+
 export function getHistory(_req, res) {
-  return res.json({ success: true, data: historyService.listHistory() });
+  const sessionId = getSessionId(_req);
+  return res.json({ success: true, data: historyService.listHistory(sessionId) });
 }
 
 export function postHistory(req, res) {
@@ -26,11 +31,12 @@ export function postHistory(req, res) {
       error: { code: 'VALIDATION_ERROR', message: 'result must be a finite number.' },
     });
   }
-  historyService.addHistory(expression.trim(), parsedResult);
-  return res.status(201).json({ success: true, data: historyService.listHistory() });
+  const sessionId = getSessionId(req);
+  historyService.addHistory(sessionId, expression.trim(), parsedResult);
+  return res.status(201).json({ success: true, data: historyService.listHistory(sessionId) });
 }
 
-export function deleteHistory(_req, res) {
-  historyService.clearHistory();
+export function deleteHistory(req, res) {
+  historyService.clearHistory(getSessionId(req));
   return res.json({ success: true, data: null });
 }
