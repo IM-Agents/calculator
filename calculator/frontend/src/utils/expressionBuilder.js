@@ -14,7 +14,7 @@ export function toggleSign(expression) {
   if (expression.endsWith(')')) {
     return expression.startsWith('-(') ? expression.slice(1) : `-${expression}`;
   }
-  const m = expression.match(/(-?)(\d+\.?\d*)$/);
+  const m = expression.match(/(-?)(\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)$/);
   if (!m) return expression;
   const [, sign, num] = m;
   const flipped = sign === '-' ? num : `-${num}`;
