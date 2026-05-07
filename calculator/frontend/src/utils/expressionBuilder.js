@@ -6,7 +6,7 @@ export function appendChar(expression, char, options = {}) {
 
 export function applyPercentToLastNumber(expression) {
   if (!expression || !expression.trim()) return expression;
-  return expression.replace(/(\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)$/, '($1/100)');
+  return expression.replace(/((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/, '($1/100)');
 }
 
 export function toggleSign(expression) {
@@ -14,7 +14,7 @@ export function toggleSign(expression) {
   if (expression.endsWith(')')) {
     return expression.startsWith('-(') ? expression.slice(1) : `-${expression}`;
   }
-  const m = expression.match(/(-?)(\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)$/);
+  const m = expression.match(/(-?)((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/);
   if (!m) return expression;
   const [, sign, num] = m;
   const flipped = sign === '-' ? num : `-${num}`;
