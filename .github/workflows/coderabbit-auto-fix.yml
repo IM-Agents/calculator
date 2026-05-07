@@ -1,0 +1,592 @@
+name: CodeRabbit Auto Fix
+
+# Let overlapping runs finish so a fetch→ClickUp post is not killed mid-flight (duplicate posts are rarer than empty aggregates).
+concurrency:
+  group: coderabbit-fix-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+# Run on both submitted + edited review events.
+# CodeRabbit can complete follow-up passes as review edits (no new "submitted"), which otherwise skips ClickUp updates.
+on:
+  pull_request_review:
+    types: [submitted, edited]
+
+  issue_comment:
+    types: [created, edited]
+
+  pull_request_review_comment:
+    types: [created, edited]
+
+  check_suite:
+    types: [completed]
+
+  check_run:
+    types: [completed]
+
+jobs:
+  coderabbit_auto_fix:
+    runs-on: ubuntu-latest
+    # Prepended to every ClickUp task comment (not stored in process.md).
+    # General docs belong in README.md — process.md is only for automation keys (branch, clickup_task).
+    env:
+      # Optional PR testing (repo Variables → Actions): CLICKUP_EXPECT_MIN_ISSUES=2; CLICKUP_VERIFY_CLICKUP_COMMENT=true (GET-after-POST check).
+      # ClickUp member id for rich comment @mention (optional; workspace user id).
+      CLICKUP_ASSIGNEE_USER_ID: '101032796'
+      # First line of ClickUp body text; assignee @mention comes from CLICKUP_ASSIGNEE_USER_ID (rich comment tag), not this string.
+      CLICKUP_AGENT_PREFIX: 'Role: Start fixing the CodeRabbit bugs'
+      CLICKUP_AGENT_INTRO: 'You are an autonomous coding agent with full repository write access.'
+      # Shown in ClickUp after the intro — keeps fixes in source files and leaves process.md alone.
+      CLICKUP_AGENT_RULES: |
+        Constraints: edit application source files directly; do not add new .md files to implement fixes.
+        Do not change process.md (reserved for automation keys). Only change into the below given code changes writeups.
+      # Posted to ClickUp when CodeRabbit leaves no actionable summary content or approves the PR on GitHub.
+      CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
+
+    if: contains(toJson(github.event), 'coderabbit')
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+
+    steps:
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Extract CodeRabbit review body
+        env:
+          REVIEW_JSON: ${{ toJSON(github.event.review.body || '') }}
+        run: |
+          COMMENT_BODY=$(echo "$REVIEW_JSON" | jq -r .)
+
+          echo "COMMENT_BODY<<EOF" >> $GITHUB_ENV
+          echo "$COMMENT_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      # Aggregate ONLY threads for THIS webhook + HEAD — excludes unrelated CR threads left on the same tip.
+      # Include every inline comment that belongs to this event (full batch from one CodeRabbit submission).
+      # Do NOT take newest-only (.[-1:]): same review often has multiple findings that must all post together.
+      - name: Fetch CodeRabbit PR comments for this review (HEAD-scoped)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TRIGGER_REVIEW_ID: ${{ github.event.review.id }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+        run: |
+          set -e
+          AGG_TEXT=""
+          MATCH=0
+          TOTAL=0
+          PREV_MATCH=-1
+          STABLE_HITS=0
+          BEST_MATCH=0
+          BEST_AGG=""
+
+          # Approvals often have no inline threads — exit retry loop after first fetch (see break below).
+          for attempt in 1 2 3 4 5; do
+            RAW=$(gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/comments" 2>/dev/null || true)
+            PAGES=$(printf '%s' "$RAW" | jq -s 'add // []' 2>/dev/null || echo '[]')
+            TOTAL=$(echo "$PAGES" | jq '[.[]? | select(.user.login | ascii_downcase | contains("coderabbit"))] | length' 2>/dev/null || echo 0)
+
+            AGG_TEXT=""
+            MATCH=0
+
+            # Tier 1: Official "comments for this review" API (avoids mismatched pull_request_review_id on combined feed).
+            if [ -n "${TRIGGER_REVIEW_ID}" ]; then
+              RAW_REV=$(gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/reviews/${TRIGGER_REVIEW_ID}/comments" 2>/dev/null || true)
+              REV_PAGES=$(printf '%s' "$RAW_REV" | jq -s 'add // []' 2>/dev/null || echo '[]')
+
+              AGG_TEXT=$(echo "$REV_PAGES" | jq -r --arg sha "$HEAD_SHA" '
+                [.[]?
+                  | select(.user.login | ascii_downcase | contains("coderabbit"))
+                  | select(.commit_id == $sha or .original_commit_id == $sha)
+                ]
+                | sort_by(.created_at)
+                | unique_by(.id)
+                | map(.body)
+                | join("\n\n---\n\n")
+              ' 2>/dev/null || echo '')
+              MATCH=$(echo "$REV_PAGES" | jq --arg sha "$HEAD_SHA" '
+                [.[]?
+                  | select(.user.login | ascii_downcase | contains("coderabbit"))
+                  | select(.commit_id == $sha or .original_commit_id == $sha)
+                ] | length' 2>/dev/null || echo 0)
+            fi
+
+            # Tier 2: Legacy combined PR comments + review id (some payloads differ).
+            if [ -z "${AGG_TEXT}" ] && [ -n "${TRIGGER_REVIEW_ID}" ]; then
+              AGG_TEXT=$(echo "$PAGES" | jq -r --arg sha "$HEAD_SHA" --arg rid "${TRIGGER_REVIEW_ID}" '
+                [.[]?
+                  | select(.user.login | ascii_downcase | contains("coderabbit"))
+                  | select(.commit_id == $sha or .original_commit_id == $sha)
+                  | select((.pull_request_review_id | tostring) == $rid)
+                ]
+                | sort_by(.created_at)
+                | unique_by(.id)
+                | map(.body)
+                | join("\n\n---\n\n")
+              ' 2>/dev/null || echo '')
+              MATCH=$(echo "$PAGES" | jq --arg sha "$HEAD_SHA" --arg rid "${TRIGGER_REVIEW_ID}" '
+                [.[]?
+                  | select(.user.login | ascii_downcase | contains("coderabbit"))
+                  | select(.commit_id == $sha or .original_commit_id == $sha)
+                  | select((.pull_request_review_id | tostring) == $rid)
+                ] | length' 2>/dev/null || echo 0)
+            fi
+
+            # Keep the highest observed match during eventual-consistency windows.
+            if [ "${MATCH}" -gt "${BEST_MATCH}" ]; then
+              BEST_MATCH="${MATCH}"
+              BEST_AGG="${AGG_TEXT}"
+            fi
+
+            # Approvals often have no inline comments; no need to keep polling.
+            if [ "${REVIEW_STATE}" = "approved" ]; then
+              break
+            fi
+
+            # Wait for a stable non-zero count across consecutive polls.
+            if [ "${MATCH}" = "${PREV_MATCH}" ] && [ "${MATCH}" != "0" ]; then
+              STABLE_HITS=$((STABLE_HITS + 1))
+            else
+              STABLE_HITS=0
+            fi
+            PREV_MATCH="${MATCH}"
+
+            if [ "${STABLE_HITS}" -ge 1 ]; then
+              break
+            fi
+
+            if [ "${attempt}" -lt 5 ]; then
+              sleep 3
+            fi
+          done
+
+          if [ "${BEST_MATCH}" -gt "${MATCH}" ]; then
+            MATCH="${BEST_MATCH}"
+            AGG_TEXT="${BEST_AGG}"
+          fi
+
+          {
+            echo "CLICKUP_AGGREGATE_BODY<<__AGG_EOF__"
+            echo "$AGG_TEXT"
+            echo "__AGG_EOF__"
+          } >> $GITHUB_ENV
+          echo "PR #${PR_NUMBER} HEAD=${HEAD_SHA}"
+          echo "CodeRabbit PR comments total=${TOTAL}, matched this event=${MATCH}"
+          echo "CLICKUP_MATCH_COUNT=${MATCH}" >> "$GITHUB_ENV"
+
+      - name: Detect CodeRabbit PR approval
+        id: cu_flags
+        run: |
+          coderabbit_approval=false
+          if [ "${{ github.event_name }}" = "pull_request_review" ] \
+            && [ "${{ github.event.review.state }}" = "approved" ] \
+            && echo "${{ github.event.review.user.login }}" | grep -qi coderabbit; then
+            coderabbit_approval=true
+            echo "CodeRabbit approved this PR — ClickUp will use CLICKUP_NO_IMPROVEMENTS_SUMMARY."
+          fi
+          echo "coderabbit_approval=${coderabbit_approval}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if nothing to process
+        run: |
+          if [ "${{ steps.cu_flags.outputs.coderabbit_approval }}" = "true" ]; then
+            echo "CodeRabbit approved the PR — continuing (ClickUp uses CLICKUP_NO_IMPROVEMENTS_SUMMARY)."
+            exit 0
+          fi
+          if [ -z "${COMMENT_BODY:-}" ] && [ -z "${CLICKUP_AGGREGATE_BODY:-}" ]; then
+            echo "No CodeRabbit text for this event and no aggregated PR comments. Skipping."
+            exit 0
+          fi
+
+      - name: Resolve ClickUp task and validate branch
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          TASK_ID=""
+          PROC_BRANCH=""
+          PROC_TASK_URL=""
+
+          # Matches plain "key: value" or Markdown "- **key**: value" (optional list + bold).
+          proc_get() {
+            local key="$1"
+            local file="$2"
+            local line
+            line=$(
+              grep -E "^[[:space:]]*(-[[:space:]]+)?(\\*\\*)?${key}(\\*\\*)?:[[:space:]]*" "$file" | head -1 || true
+            )
+            [ -z "$line" ] && return 0
+            echo "$line" | sed -E "s/^[[:space:]]*(-[[:space:]]+)?(\\*\\*)?${key}(\\*\\*)?:[[:space:]]*//;s/[[:space:]]*#.*$//;s/[[:space:]]*$//;s/^[\"']//;s/[\"']$//"
+          }
+
+          id_from_clickup_string() {
+            local s="$1"
+            local id
+            id=$(echo "$s" | grep -oEi '/t/[a-z0-9]+' | tail -1 | sed 's|^/t/||' || true)
+            if [ -z "$id" ]; then
+              id=$(echo "$s" | grep -oEi 'clickup\.com/t/[a-z0-9]+' | head -1 | sed 's|.*/t/||' || true)
+            fi
+            echo "$id"
+          }
+
+          PROC_FILE="process.md"
+          if [ -f "$PROC_FILE" ]; then
+            echo "Parsing $PROC_FILE for clickup_task and branch."
+            PROC_BRANCH=$(proc_get branch "$PROC_FILE" || true)
+            PROC_TASK_RAW=$(proc_get clickup_task "$PROC_FILE" || true)
+            if [ -n "$PROC_TASK_RAW" ]; then
+              if echo "$PROC_TASK_RAW" | grep -qi 'clickup\.com'; then
+                TASK_ID=$(id_from_clickup_string "$PROC_TASK_RAW")
+                PROC_TASK_URL=$(echo "$PROC_TASK_RAW" | tr -d '\r' | sed 's/[[:space:]]*$//')
+              else
+                CLEAN=$(echo "$PROC_TASK_RAW" | tr -d '\r')
+                if echo "$CLEAN" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+                  TASK_ID="$CLEAN"
+                  PROC_TASK_URL="https://app.clickup.com/t/${TASK_ID}"
+                fi
+              fi
+              if [ -n "$TASK_ID" ]; then
+                echo "ClickUp task id from $PROC_FILE: $TASK_ID"
+              fi
+            fi
+          else
+            echo "process.md not found at repo root."
+          fi
+
+          if [ -z "$TASK_ID" ]; then
+            echo "No clickup_task in process.md; skipping ClickUp validation and comments."
+          else
+            if [ -z "$PROC_BRANCH" ]; then
+              echo "::error::When clickup_task is set, branch must be set in process.md (e.g. branch: cursor_new_oma_req) and must match the PR head branch."
+              exit 1
+            fi
+            if [ "$PROC_BRANCH" != "$HEAD_REF" ]; then
+              echo "::error::branch in process file ('$PROC_BRANCH') must match PR head ref ('$HEAD_REF'). Update process.md or use a PR from the correct branch."
+              exit 1
+            fi
+            echo "Branch validated: process branch matches PR head ($HEAD_REF)."
+          fi
+
+          echo "TASK_ID=$TASK_ID" >> $GITHUB_ENV
+          {
+            echo "PROC_TASK_URL<<__PROC_EOF__"
+            echo "${PROC_TASK_URL:-}"
+            echo "__PROC_EOF__"
+          } >> $GITHUB_ENV
+          echo "PROC_BRANCH=$PROC_BRANCH" >> $GITHUB_ENV
+          echo "CLICKUP_MEMBER_ID=${CLICKUP_ASSIGNEE_USER_ID}" >> $GITHUB_ENV
+          echo "Final ClickUp task id: ${TASK_ID:-<empty>}"
+          echo "ClickUp assignee user id (workflow CLICKUP_ASSIGNEE_USER_ID): ${CLICKUP_ASSIGNEE_USER_ID}"
+
+      - name: Post CodeRabbit suggestion to ClickUp
+        id: clickup_post
+        if: env.TASK_ID != ''
+        env:
+          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
+          IS_CODERABBIT_APPROVAL: ${{ steps.cu_flags.outputs.coderabbit_approval }}
+        run: |
+          echo "posted=false" >> "$GITHUB_OUTPUT"
+          echo "issue_count=0" >> "$GITHUB_OUTPUT"
+
+          CLICKUP_TOKEN=$(printf '%s' "${CLICKUP_API_KEY:-}" | tr -d '\r\n' | xargs)
+
+          # Latest-push aggregate first; fall back to this event's review/comment body (same tip).
+          SOURCE_TEXT="${CLICKUP_AGGREGATE_BODY:-$COMMENT_BODY}"
+          if [ -z "$SOURCE_TEXT" ]; then
+            SOURCE_TEXT="$COMMENT_BODY"
+          fi
+
+          # Strip HTML comments; collapse blank lines (keep raw <details> for extraction below).
+          CLEAN_COMMENT=$(printf '%s\n' "$SOURCE_TEXT" \
+            | sed '/<!--/,/-->/d' \
+            | sed '/^[[:space:]]*You are an autonomous coding agent/d' \
+            | sed '/^[[:space:]]*Task:[[:space:]]*/d' \
+            | sed '/^[[:space:]]*Branch:[[:space:]]*/d' \
+            | awk '
+                {
+                  line=$0
+                  sub(/\r$/, "", line)
+                  if (line ~ /^[[:space:]]*$/) {
+                    if (!blank) { print ""; blank=1 }
+                  } else {
+                    print line
+                    blank=0
+                  }
+                }
+              ' \
+            | sed '/^[[:space:]]*$/{
+                     N
+                     /^[[:space:]]*\n[[:space:]]*$/D
+                   }')
+
+          DETAILS_MARKERS=$(printf '%s\n' "$CLEAN_COMMENT" | grep -cEi '<summary[^>]*>[^<]*(Suggested|Proposed|Prompt for AI Agents)' || true)
+          MARKDOWN_PROMPT_BLOCKS=$(printf '%s\n' "$CLEAN_COMMENT" | grep -cE 'Prompt for AI Agents' || true)
+
+          # Keep only Suggested fix + Prompt for AI Agents per issue; render as ClickUp-friendly fenced /code blocks.
+          cat > /tmp/cu_cr_clickup.pl <<'ENDPERL'
+          use strict;
+          use warnings;
+          local $/;
+          my $input = <STDIN> // '';
+          sub strip_inner_html {
+            my ($s) = @_;
+            return '' unless defined $s && $s =~ /\S/;
+            $s =~ s/\r//g;
+            $s =~ s/<\s*br\s*\/?>/\n/gi;
+            $s =~ s/<\/p>\s*/\n/gi;
+            $s =~ s/<p[^>]*>\s*//gi;
+            $s =~ s/<\/?pre>//gi;
+            $s =~ s/<\/?code[^>]*>//gi;
+            $s =~ s/<span[^>]*>//gi;
+            $s =~ s/<\/span>//gi;
+            $s =~ s/<[^>]+>//g;
+            $s =~ s/[ \t]+\n/\n/g;
+            $s =~ s/\n{3,}/\n\n/g;
+            $s =~ s/^\s+|\s+$//g;
+            return $s;
+          }
+          sub normalize_markdown_fences {
+            my ($s) = @_;
+            return '' unless defined $s && $s =~ /\S/;
+            $s =~ s/\r//g;
+            $s =~ s/^\s+|\s+$//g;
+            my $guard = 0;
+            while ($guard++ < 5) {
+              if ($s =~ /\A(`{3,})[^\n]*\n(.*)\n\1\h*\z/s) {
+                $s = $2;
+                $s =~ s/^\s+|\s+$//g;
+                next;
+              }
+              last;
+            }
+            # If extraction grabbed a wrapper from the middle of a backtick run, remove orphan fence lines.
+            if ($s =~ /\A`{3,}[^\n]*\n/s && $s !~ /\n`{3,}\h*\z/s) {
+              $s =~ s/\A`{3,}[^\n]*\n//s;
+            }
+            if ($s !~ /\A`{3,}[^\n]*\n/s && $s =~ /\n`{3,}\h*\z/s) {
+              $s =~ s/\n`{3,}\h*\z//s;
+            }
+            $s =~ s/^\s+|\s+$//g;
+            return $s;
+          }
+          sub longest_backtick_run {
+            my ($s) = @_;
+            my $max = 0;
+            while ($s =~ /(`+)/g) {
+              my $n = length($1);
+              $max = $n if $n > $max;
+            }
+            return $max;
+          }
+          sub fence {
+            my ($label, $body) = @_;
+            $body = strip_inner_html($body);
+            $body = normalize_markdown_fences($body);
+            return '' if $body eq '';
+            # CodeRabbit bodies often already contain ``` / ```diff fences. Nesting same-length fences
+            # breaks Markdown; outer fence must be longer than any inner run (CommonMark).
+            my $inner = longest_backtick_run($body);
+            my $n = ($inner >= 3) ? ($inner + 1) : 3;
+            my $fence = '`' x $n;
+            return '**' . $label . "**\n\n" . $fence . "\n" . $body . "\n" . $fence . "\n\n";
+          }
+          my @parts = split(/\n\n---\n\n/, $input);
+          my @blocks;
+          my $issue = 0;
+          my $total_chunks = 0;
+          for my $chunk (@parts) {
+            next unless $chunk =~ /\S/;
+            $total_chunks++;
+            my $fix = '';
+            my $prompt = '';
+            if ($chunk =~ m{<details[^>]*>\s*<summary[^>]*>[^<]*(?:Suggested\s+fix|Proposed\s+fix|Suggested\s+patch|💡\s*Proposed|🔧\s*Suggested|🐛\s*Proposed|♻️\s*Proposed)[^<]*</summary>(.*?)</details>}is) {
+              $fix = $1;
+            }
+            if ($chunk =~ m{<details[^>]*>\s*<summary[^>]*>[^<]*(?:🤖\s*)?Prompt for AI Agents[^<]*</summary>(.*?)</details>}is) {
+              $prompt = $1;
+            }
+            # Fallback for markdown-only bodies (no <details>/<summary> wrapper).
+            if ($fix eq '' && $chunk =~ m{(?:^|\n)\h*(?:🛠️|💡|🔧|🐛|♻️)?\h*(?:Proposed|Suggested)\h+(?:fix|patch)\h*\n+\h*(?:`{4,}\h*\n\h*)?```(?:diff)?\n(.*?)\n\h*```(?:\h*\n\h*`{4,})?}is) {
+              $fix = $1;
+            }
+            if ($prompt eq '' && $chunk =~ m{(?:^|\n)\h*(?:🤖\h*)?Prompt for AI Agents\h*\n+\h*(?:`{4,}\h*\n\h*)?```\n(.*?)\n\h*```(?:\h*\n\h*`{4,})?}is) {
+              $prompt = $1;
+            }
+            my $piece = '';
+            $piece .= fence('Suggested fix', $fix) if $fix ne '';
+            $piece .= fence('Prompt for AI Agents', $prompt) if $prompt ne '';
+            if ($piece =~ /\S/) {
+              $issue++;
+              push @blocks, "### Issue $issue\n\n" . $piece;
+            }
+          }
+          my $out = join("\n---\n\n", @blocks);
+          $out =~ s/\n{4,}/\n\n\n/g;
+          my $meta = "__PARSER_META__ total_chunks=$total_chunks issue_count=$issue";
+          print $meta . "\n";
+          print $out;
+          ENDPERL
+          sed -i 's/^[[:space:]]*//' /tmp/cu_cr_clickup.pl
+
+          if command -v perl >/dev/null 2>&1; then
+            FORMATTED=$(printf '%s\n' "$CLEAN_COMMENT" | perl /tmp/cu_cr_clickup.pl 2>/dev/null || true)
+            if [ -n "$FORMATTED" ]; then
+              CLEAN_COMMENT="$FORMATTED"
+            else
+              CLEAN_COMMENT=""
+            fi
+          fi
+
+          PARSER_META=$(printf '%s\n' "$CLEAN_COMMENT" | grep -m1 '^__PARSER_META__' || true)
+          if [ -n "$PARSER_META" ]; then
+            CLEAN_COMMENT=$(printf '%s\n' "$CLEAN_COMMENT" | sed '/^__PARSER_META__/d')
+          fi
+
+          ISSUE_COUNT=$(printf '%s\n' "$CLEAN_COMMENT" | grep -oE '### Issue [0-9]+' | wc -l | tr -d '[:space:]')
+          MATCHED_COUNT="${CLICKUP_MATCH_COUNT:-0}"
+          if [ "${ISSUE_COUNT}" -lt "${MATCHED_COUNT}" ]; then
+            echo "::warning::Parsed issue blocks (${ISSUE_COUNT}) are less than matched actionable comments (${MATCHED_COUNT}); posting only parsed Suggested fix / Prompt blocks."
+          fi
+          echo "issue_count=${ISSUE_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "Formatted ClickUp payload: ${ISSUE_COUNT} issue block(s) (### Issue headings)."
+          {
+            echo "## CodeRabbit → ClickUp"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| CodeRabbit PR comments matched (this review) | ${CLICKUP_MATCH_COUNT:-0} |"
+            echo "| <summary...> markers in source text | ${DETAILS_MARKERS:-0} |"
+            echo "| Prompt for AI Agents mentions in source text | ${MARKDOWN_PROMPT_BLOCKS:-0} |"
+            echo "| Parser meta | ${PARSER_META:-n/a} |"
+            echo "| Issues formatted for ClickUp (### Issue N) | ${ISSUE_COUNT} |"
+            echo ""
+            echo "Multiple findings from one CodeRabbit submission should appear as separate ### Issue 1, ### Issue 2, ... in a single task comment."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [ -z "$CLICKUP_TOKEN" ]; then
+            echo "::warning::CLICKUP_API_KEY is missing/empty after trim. Skipping ClickUp comment."
+            exit 0
+          fi
+
+          if [ "${IS_CODERABBIT_APPROVAL:-false}" = "true" ]; then
+            SUMMARY="$CLICKUP_NO_IMPROVEMENTS_SUMMARY"
+          elif [ -n "${CLEAN_COMMENT:-}" ]; then
+            SUMMARY=$(printf '%s\n\n%s\n\n%s' \
+              "${CLICKUP_AGENT_PREFIX}" \
+              "**CodeRabbit Review Summary**" \
+              "$CLEAN_COMMENT")
+          else
+            SUMMARY="$CLICKUP_NO_IMPROVEMENTS_SUMMARY"
+          fi
+
+          BLOCK="$SUMMARY"
+
+          # New task comment every run (HEAD-scoped CodeRabbit content unchanged above).
+          HTTP_CODE=""
+          RESP=""
+
+          if [ -n "${CLICKUP_MEMBER_ID:-}" ]; then
+            BODY=$(jq -n \
+              --argjson uid "$CLICKUP_MEMBER_ID" \
+              --arg text "$BLOCK" \
+              '{comment: [ {type:"tag", user:{id:$uid}}, {text: (" " + $text)} ], notify_all:false}')
+          else
+            BODY=$(jq -n --arg text "$BLOCK" '{comment_text:$text, notify_all:false}')
+          fi
+
+          RESP=$(curl -s -w "\n%{http_code}" -X POST "https://api.clickup.com/api/v2/task/${TASK_ID}/comment" \
+            -H "Authorization: $CLICKUP_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+          HTTP_CODE=$(echo "$RESP" | tail -n1)
+          echo "ClickUp POST response code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ] && [ -n "${CLICKUP_MEMBER_ID:-}" ]; then
+            echo "Rich comment failed; retrying with plain comment_text (no user tag)."
+            BODY=$(jq -n --arg text "$BLOCK" '{comment_text:$text, notify_all:false}')
+            RESP=$(curl -s -w "\n%{http_code}" -X POST "https://api.clickup.com/api/v2/task/${TASK_ID}/comment" \
+              -H "Authorization: $CLICKUP_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$BODY")
+            HTTP_CODE=$(echo "$RESP" | tail -n1)
+            echo "ClickUp POST (plain) response code: $HTTP_CODE"
+          fi
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ClickUp response:"
+            echo "$RESP"
+            if [ "$HTTP_CODE" = "401" ]; then
+              echo "::error::ClickUp returned 401 (invalid token). Update GitHub secret CLICKUP_API_KEY with a valid ClickUp API token for this workspace."
+            fi
+          else
+            echo "posted=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce minimum formatted issues (optional)
+        if: >-
+          success() && env.TASK_ID != '' &&
+          vars.CLICKUP_EXPECT_MIN_ISSUES != ''
+        env:
+          MIN_ISSUES: ${{ vars.CLICKUP_EXPECT_MIN_ISSUES }}
+          COUNT: ${{ steps.clickup_post.outputs.issue_count }}
+        run: |
+          set -e
+          MIN=$(printf '%s' "${MIN_ISSUES:-}" | tr -d '\r\n\t ' | grep -E '^[0-9]+$' || true)
+          if [ -z "$MIN" ]; then
+            echo "::warning::CLICKUP_EXPECT_MIN_ISSUES is set but not a positive integer; skipping enforcement."
+            exit 0
+          fi
+          CNT="${COUNT:-0}"
+          echo "Checking formatted issue count ($CNT) >= minimum ($MIN) [repo variable CLICKUP_EXPECT_MIN_ISSUES]."
+          if [ "$CNT" -lt "$MIN" ]; then
+            echo "::error::Expected at least $MIN CodeRabbit issue block(s) in the ClickUp payload, got $CNT. Fix parsing or trigger a review with more inline findings."
+            exit 1
+          fi
+
+      - name: Verify latest ClickUp comment (optional)
+        if: >-
+          success() && env.TASK_ID != '' &&
+          vars.CLICKUP_VERIFY_CLICKUP_COMMENT == 'true' &&
+          steps.clickup_post.outputs.posted == 'true'
+        env:
+          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
+          EXPECT_ISSUES: ${{ steps.clickup_post.outputs.issue_count }}
+          TASK_ID: ${{ env.TASK_ID }}
+        run: |
+          set -e
+          TOKEN=$(printf '%s' "${CLICKUP_API_KEY:-}" | tr -d '\r\n' | xargs)
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::CLICKUP_API_KEY missing; cannot verify ClickUp comment."
+            exit 0
+          fi
+          EXP="${EXPECT_ISSUES:-0}"
+          if [ "$EXP" -lt 1 ]; then
+            echo "Skipping GET verify (no ### Issue N blocks in payload - approval or empty parse)."
+            exit 0
+          fi
+
+          sleep 2
+          JSON=$(curl -s -S -H "Authorization: $TOKEN" \
+            "https://api.clickup.com/api/v2/task/${TASK_ID}/comment")
+
+          TEXT=$(printf '%s' "$JSON" | jq -r '.comments[0].comment_text // empty' 2>/dev/null || echo '')
+          if [ -z "$TEXT" ]; then
+            TEXT=$(printf '%s' "$JSON" | jq -r '[.comments[0].comment[]? | .text // empty] | join("")' 2>/dev/null || echo '')
+          fi
+
+          FOUND=$(printf '%s' "$TEXT" | grep -oE '### Issue [0-9]+' | wc -l | tr -d '[:space:]')
+          echo "Latest task comment: found ${FOUND} '### Issue N' heading(s); payload had ${EXP}."
+
+          if [ "$FOUND" != "$EXP" ]; then
+            echo "::error::ClickUp GET verify failed: expected ${EXP} issue heading(s) in newest comment, found ${FOUND}. Open the task and confirm rich-comment formatting."
+            exit 1
+          fi
+          echo "ClickUp GET verify passed — newest comment matches formatted issue count."
+
+      - name: Finish
+        run: echo "Workflow completed successfully."
