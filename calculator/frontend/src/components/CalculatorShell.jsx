@@ -8,7 +8,7 @@ import { useKeyboardInput } from '../hooks/useKeyboardInput.js';
 
 export default function CalculatorShell() {
   const calc = useCalculatorState();
-  console.log('test')
+
   const keyboardHandlers = useMemo(
     () => ({
       appendDigit: calc.appendDigit,
