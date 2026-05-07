@@ -16,6 +16,7 @@ reviews:
     - "!AGENTS.md"
     - "!**/*.md"
     - "!**/*.yml"
+    - "!**/*.yaml"
 
   path_instructions:
     - path: "frontend/src/**/*.{js,jsx}"

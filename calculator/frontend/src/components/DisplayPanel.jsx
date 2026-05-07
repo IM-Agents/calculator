@@ -1,5 +1,6 @@
 export default function DisplayPanel({ expression, result, error, busy }) {
-  const primary = expression.trim() === '' && !error ? '0' : expression || '0';
+  const normalizedExpression = String(expression ?? '');
+  const primary = normalizedExpression.trim() === '' && !error ? '0' : normalizedExpression || '0';
   const secondary = error || result || '';
 
   return (
