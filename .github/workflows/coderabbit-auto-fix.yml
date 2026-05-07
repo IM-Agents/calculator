@@ -42,11 +42,12 @@ jobs:
       # Posted to ClickUp when CodeRabbit leaves no actionable summary content or approves the PR on GitHub.
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
-    if: contains(github.event.review.user.login, 'coderabbit')
+    if: contains(toJson(github.event), 'coderabbit')
 
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
+      issues: read
 
     steps:
 
