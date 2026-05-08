@@ -8,13 +8,15 @@ concurrency:
 # Run on both submitted + edited review events.
 # CodeRabbit can complete follow-up passes as review edits (no new "submitted"), which otherwise skips ClickUp updates.
 on:
-  status
+  pull_request_review:
+    types: [submitted, edited]
   # pull_request_review:
   #   types: [submitted]
 
 jobs:
   coderabbit_auto_fix:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_review' && contains(github.event.review.user.login, 'coderabbit')
     # Prepended to every ClickUp task comment (not stored in process.md).
     # General docs belong in README.md — process.md is only for automation keys (branch, clickup_task).
     env:
@@ -174,11 +176,9 @@ jobs:
         id: cu_flags
         run: |
           coderabbit_approval=false
-          if [ "${{ github.event_name }}" = "pull_request_review" ] \
-            && [ "${{ github.event.review.state }}" = "approved" ] \
+          if [ "${{ github.event.review.state }}" = "approved" ] \
             && echo "${{ github.event.review.user.login }}" | grep -qi coderabbit; then
             coderabbit_approval=true
-            echo "CodeRabbit approved this PR — ClickUp will use CLICKUP_NO_IMPROVEMENTS_SUMMARY."
           fi
           echo "coderabbit_approval=${coderabbit_approval}" >> "$GITHUB_OUTPUT"
 
