@@ -9,19 +9,7 @@ concurrency:
 # CodeRabbit can complete follow-up passes as review edits (no new "submitted"), which otherwise skips ClickUp updates.
 on:
   pull_request_review:
-    types: [submitted, edited]
-
-  issue_comment:
-    types: [created, edited]
-
-  pull_request_review_comment:
-    types: [created, edited]
-
-  check_suite:
-    types: [completed]
-
-  check_run:
-    types: [completed]
+    types: [submitted]
 
 jobs:
   coderabbit_auto_fix:
@@ -42,11 +30,11 @@ jobs:
       # Posted to ClickUp when CodeRabbit leaves no actionable summary content or approves the PR on GitHub.
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
-    if: contains(toJson(github.event), 'coderabbit')
+    if: contains(github.event.review.user.login, 'coderabbit')
 
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: read
       issues: read
 
     steps:
