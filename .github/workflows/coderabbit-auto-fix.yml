@@ -10,13 +10,16 @@ concurrency:
 on:
   pull_request_review:
     types: [submitted, edited]
+  check_run:
+    types: [completed]
   # pull_request_review:
   #   types: [submitted]
 
 jobs:
   coderabbit_auto_fix:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_review' && contains(github.event.review.user.login, 'coderabbit')
+    if: >
+    (github.event_name == 'pull_request_review' && contains(toLower(github.event.review.user.login), 'coderabbit')) || (github.event_name == 'check_run' && contains(toLower(github.event.check_run.name), 'coderabbit') && github.event.check_run.conclusion == 'success')
     # Prepended to every ClickUp task comment (not stored in process.md).
     # General docs belong in README.md — process.md is only for automation keys (branch, clickup_task).
     env:
