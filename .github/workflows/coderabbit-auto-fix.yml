@@ -8,8 +8,9 @@ concurrency:
 # Run on both submitted + edited review events.
 # CodeRabbit can complete follow-up passes as review edits (no new "submitted"), which otherwise skips ClickUp updates.
 on:
-  pull_request_review:
-    types: [submitted]
+  status
+  # pull_request_review:
+  #   types: [submitted]
 
 jobs:
   coderabbit_auto_fix:
