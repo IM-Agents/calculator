@@ -18,7 +18,6 @@ on:
 jobs:
   coderabbit_auto_fix:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_review' && contains(github.event.review.user.login, 'coderabbit')
     # Prepended to every ClickUp task comment (not stored in process.md).
     # General docs belong in README.md — process.md is only for automation keys (branch, clickup_task).
     env:
@@ -35,7 +34,7 @@ jobs:
       # Posted to ClickUp when CodeRabbit leaves no actionable summary content or approves the PR on GitHub.
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
-    # if: contains(github.event.review.user.login, 'coderabbit')
+    if: contains(github.event.review.user.login, 'coderabbit')
 
     permissions:
       contents: read
