@@ -26,7 +26,7 @@ export default function CalculatorShell() {
       calc.handleBackspace,
       calc.handleClear,
     ],
-  );
+  ); 
 
   useKeyboardInput(keyboardHandlers, !calc.busy);
 
