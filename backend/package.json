@@ -1,0 +1,20 @@
+{
+  "name": "calculator-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "uuid": "^11.0.3"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}
