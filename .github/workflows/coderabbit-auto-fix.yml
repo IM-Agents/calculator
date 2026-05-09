@@ -10,6 +10,10 @@ concurrency:
 on:
   pull_request_review:
     types: [submitted, edited]
+  check_run:
+    types: [completed]
+  # pull_request_review:
+  #   types: [submitted]
 
 jobs:
   coderabbit_auto_fix:
@@ -35,6 +39,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      issues: read
 
     steps:
 
@@ -45,6 +50,7 @@ jobs:
 
       - name: Extract CodeRabbit review body
         env:
+          CHECK_REVIEW_BODY: ${{ github.event || '' }}
           REVIEW_JSON: ${{ toJSON(github.event.review.body || '') }}
         run: |
           COMMENT_BODY=$(echo "$REVIEW_JSON" | jq -r .)
@@ -172,11 +178,9 @@ jobs:
         id: cu_flags
         run: |
           coderabbit_approval=false
-          if [ "${{ github.event_name }}" = "pull_request_review" ] \
-            && [ "${{ github.event.review.state }}" = "approved" ] \
+          if [ "${{ github.event.review.state }}" = "approved" ] \
             && echo "${{ github.event.review.user.login }}" | grep -qi coderabbit; then
             coderabbit_approval=true
-            echo "CodeRabbit approved this PR — ClickUp will use CLICKUP_NO_IMPROVEMENTS_SUMMARY."
           fi
           echo "coderabbit_approval=${coderabbit_approval}" >> "$GITHUB_OUTPUT"
 
