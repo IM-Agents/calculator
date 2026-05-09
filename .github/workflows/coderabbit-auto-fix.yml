@@ -34,15 +34,6 @@ jobs:
       # Posted to ClickUp when CodeRabbit leaves no actionable summary content or approves the PR on GitHub.
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
-    name: Trace event context
-    run: |
-      echo "event_name=${{ github.event_name }}"
-      echo "action=${{ github.event.action }}"
-      echo "review_user=${{ github.event.review.user.login || 'n/a' }}"
-      echo "review_state=${{ github.event.review.state || 'n/a' }}"
-      echo "pr_number=${{ github.event.pull_request.number || 'n/a' }}"
-      echo "head_ref=${{ github.event.pull_request.head.ref || 'n/a' }}"
-
     if: contains(github.event.review.user.login, 'coderabbit')
 
     permissions:
@@ -59,6 +50,7 @@ jobs:
 
       - name: Extract CodeRabbit review body
         env:
+          CHECK_REVIEW_BODY: ${{ github.event || '' }}
           REVIEW_JSON: ${{ toJSON(github.event.review.body || '') }}
         run: |
           COMMENT_BODY=$(echo "$REVIEW_JSON" | jq -r .)
