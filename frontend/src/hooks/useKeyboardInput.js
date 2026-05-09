@@ -35,7 +35,7 @@ export function useKeyboardInput(onPress) {
         return;
       }
       event.preventDefault();
-    }  
+    }
 
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
