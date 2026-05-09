@@ -25,6 +25,24 @@ const supportedKeys = new Set([
 export function useKeyboardInput(onPress) {
   useEffect(() => {
     function handleKeydown(event) {
+      const target = event.target;
+      const tagName = target?.tagName;
+      const isEditableTarget =
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        target?.isContentEditable ||
+        target?.matches?.('[contenteditable="true"]');
+
+      if (
+        event.defaultPrevented ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        isEditableTarget
+      ) {
+        return;
+      }
+
       if (supportedKeys.has(event.key)) {
         onPress(event.key);
       } else if (event.key === "Enter") {
