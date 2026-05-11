@@ -8,7 +8,10 @@ import { fetchHistory, postCalculate } from "../services/api.js";
 import { canAppendDecimal, isValidExpression } from "../utils/validateExpression.js";
 
 function historyKey(item) {
-  return item?.id ?? `${item.expression}\0${item.result}\0${item.timestamp ?? ""}`;
+  if (item == null) {
+    return "";
+  }
+  return item.id ?? `${item.expression}\0${item.result}\0${item.timestamp ?? ""}`;
 }
 
 function historyTime(item) {
@@ -23,17 +26,19 @@ function mergeHistory(prev, incoming) {
   const merged = [];
   for (const item of incomingList) {
     const key = historyKey(item);
-    if (!seen.has(key)) {
-      seen.add(key);
-      merged.push(item);
+    if (!key || seen.has(key)) {
+      continue;
     }
+    seen.add(key);
+    merged.push(item);
   }
   for (const item of prev) {
     const key = historyKey(item);
-    if (!seen.has(key)) {
-      seen.add(key);
-      merged.push(item);
+    if (!key || seen.has(key)) {
+      continue;
     }
+    seen.add(key);
+    merged.push(item);
   }
   merged.sort((a, b) => historyTime(b) - historyTime(a));
   return merged.slice(0, 10);
