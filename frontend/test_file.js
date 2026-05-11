@@ -24,13 +24,14 @@ class UserManager {
       email
     };
 
-    this.users.push(newUser);
+    this.users.push({ ...newUser });
 
-    return newUser;
+    return { ...newUser };
   }
 
   getUserById(id) {
-    return this.users.find(user => user.id === id) || null;
+    const user = this.users.find(user => user.id === id);
+    return user ? { ...user } : null;
   }
 
   removeUser(id) {
@@ -45,7 +46,7 @@ class UserManager {
   }
 
   listUsers() {
-    return [...this.users];
+    return this.users.map(user => ({ ...user }));
   }
 }
 
