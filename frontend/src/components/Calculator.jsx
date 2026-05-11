@@ -15,15 +15,21 @@ export default function Calculator() {
   const [history, setHistory] = useState([]);
   const [angleMode, setAngleMode] = useState("DEG");
   const evaluateRequestIdRef = useRef(0);
+  const historyLoadIdRef = useRef(0);
+
+  const invalidatePendingEvaluate = useCallback(() => {
+    evaluateRequestIdRef.current += 1;
+  }, []);
 
   const evaluate = useCallback(async () => {
+    const requestId = ++evaluateRequestIdRef.current;
+
     if (!isValidExpression(expression)) {
       setError("Enter an expression.");
       return;
     }
 
     setError("");
-    const requestId = ++evaluateRequestIdRef.current;
 
     try {
       const data = await postCalculate(expression, angleMode);
@@ -48,20 +54,24 @@ export default function Calculator() {
         return;
       }
       if (label === "AC") {
+        invalidatePendingEvaluate();
         setExpression("");
         setResult(null);
         setError("");
         return;
       }
       if (label === "⌫") {
+        invalidatePendingEvaluate();
         setExpression((value) => value.slice(0, -1));
         return;
       }
       if (label === "±") {
+        invalidatePendingEvaluate();
         setExpression((value) => (value.startsWith("-") ? value.slice(1) : `-${value}`));
         return;
       }
       if (label === "MR") {
+        invalidatePendingEvaluate();
         setExpression((value) => `${value}${memoryValue}`);
         return;
       }
@@ -77,6 +87,7 @@ export default function Calculator() {
         setMemoryValue((value) => value - Number(result));
         return;
       }
+      invalidatePendingEvaluate();
       setExpression((prev) => {
         if (label === ".") {
           return canAppendDecimal(prev) ? `${prev}.` : prev;
@@ -85,28 +96,44 @@ export default function Calculator() {
         return `${prev}${mapped}`;
       });
     },
-    [evaluate, memoryValue, result]
+    [evaluate, invalidatePendingEvaluate, memoryValue, result]
   );
 
   useKeyboardInput(onPress);
 
   useEffect(() => {
     async function loadHistory() {
+      const loadId = ++historyLoadIdRef.current;
       try {
         const data = await fetchHistory();
+        if (loadId !== historyLoadIdRef.current) {
+          return;
+        }
         setHistory(data.items);
       } catch (requestError) {
+        if (loadId !== historyLoadIdRef.current) {
+          return;
+        }
         setError(requestError.message || "Unable to load history.");
       }
     }
 
     void loadHistory();
+    return () => {
+      historyLoadIdRef.current += 1;
+    };
   }, []);
 
   return (
     <div className="calculator-layout">
       <section className="calculator-panel">
-        <ModeToggle angleMode={angleMode} onToggle={setAngleMode} />
+        <ModeToggle
+          angleMode={angleMode}
+          onToggle={(mode) => {
+            invalidatePendingEvaluate();
+            setAngleMode(mode);
+          }}
+        />
         <Display expression={expression} result={result} error={error} />
         <ButtonGrid onPress={onPress} />
       </section>
