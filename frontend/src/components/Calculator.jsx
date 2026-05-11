@@ -18,7 +18,7 @@ export default function Calculator() {
     if (!isValidExpression(expression)) {
       setError("Enter an expression.");
       return;
-    }
+    } 
 
     try {
       setError("");
