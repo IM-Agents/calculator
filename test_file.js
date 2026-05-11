@@ -12,7 +12,7 @@ class UserManager {
 
     // Check for duplicate ID
     const existingUser = this.users.find(user => user.id === id);
- 
+
     if (existingUser) {
       throw new Error("User with this ID already exists.");
     }
