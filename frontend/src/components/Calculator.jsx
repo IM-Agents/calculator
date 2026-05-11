@@ -77,14 +77,15 @@ export default function Calculator() {
         setMemoryValue((value) => value - Number(result));
         return;
       }
-      if (label === "." && !canAppendDecimal(expression)) {
-        return;
-      }
-
-      const mapped = label === "pi" ? "pi" : label;
-      setExpression((value) => `${value}${mapped}`);
+      setExpression((prev) => {
+        if (label === ".") {
+          return canAppendDecimal(prev) ? `${prev}.` : prev;
+        }
+        const mapped = label === "pi" ? "pi" : label;
+        return `${prev}${mapped}`;
+      });
     },
-    [evaluate, expression, memoryValue, result]
+    [evaluate, memoryValue, result]
   );
 
   useKeyboardInput(onPress);
