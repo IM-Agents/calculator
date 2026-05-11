@@ -8,7 +8,7 @@ class UserManager {
     // Validate inputs
     if (!id || !name || !email) {
       throw new Error("All fields are required.");
-    }
+    } 
 
     // Check for duplicate ID
     const existingUser = this.users.find(user => user.id === id);
