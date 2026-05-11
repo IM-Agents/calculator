@@ -1,17 +1,20 @@
 // Simple User Manager Class
 class UserManager {
+  #users;
+
   constructor() {
-    this.users = [];
+    this.#users = [];
   }
 
   addUser(id, name, email) {
     // Validate inputs
-    if (!id || !name || !email) {
+    const isBlank = (value) => typeof value !== "string" || value.trim() === "";
+    if (id === null || id === undefined || isBlank(name) || isBlank(email)) {
       throw new Error("All fields are required.");
     }
 
     // Check for duplicate ID
-    const existingUser = this.users.find(user => user.id === id);
+    const existingUser = this.#users.find(user => user.id === id);
 
     if (existingUser) {
       throw new Error("User with this ID already exists.");
@@ -24,29 +27,33 @@ class UserManager {
       email
     };
 
-    this.users.push({ ...newUser });
+    this.#users.push({ ...newUser });
 
     return { ...newUser };
   }
 
   getUserById(id) {
-    const user = this.users.find(user => user.id === id);
+    const user = this.#users.find(user => user.id === id);
     return user ? { ...user } : null;
   }
 
   removeUser(id) {
-    const index = this.users.findIndex(user => user.id === id);
+    const index = this.#users.findIndex(user => user.id === id);
 
     if (index === -1) {
       return false;
     }
 
-    this.users.splice(index, 1);
+    this.#users.splice(index, 1);
     return true;
   }
 
+  getUsers() {
+    return Object.freeze(this.#users.map(user => ({ ...user })));
+  }
+
   listUsers() {
-    return this.users.map(user => ({ ...user }));
+    return this.getUsers();
   }
 }
 
