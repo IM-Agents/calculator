@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ButtonGrid from "./ButtonGrid.jsx";
 import Display from "./Display.jsx";
 import HistoryPanel from "./HistoryPanel.jsx";
@@ -14,19 +14,28 @@ export default function Calculator() {
   const [memoryValue, setMemoryValue] = useState(0);
   const [history, setHistory] = useState([]);
   const [angleMode, setAngleMode] = useState("DEG");
+  const evaluateRequestIdRef = useRef(0);
 
   const evaluate = useCallback(async () => {
     if (!isValidExpression(expression)) {
       setError("Enter an expression.");
       return;
-    } 
+    }
+
+    setError("");
+    const requestId = ++evaluateRequestIdRef.current;
 
     try {
-      setError("");
       const data = await postCalculate(expression, angleMode);
+      if (requestId !== evaluateRequestIdRef.current) {
+        return;
+      }
       setResult(data.result);
       setHistory((previous) => [data.historyItem, ...previous].slice(0, 10));
     } catch (requestError) {
+      if (requestId !== evaluateRequestIdRef.current) {
+        return;
+      }
       setError(requestError.message || "Unable to evaluate expression.");
     }
   }, [angleMode, expression]);
