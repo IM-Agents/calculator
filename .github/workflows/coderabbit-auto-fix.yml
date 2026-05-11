@@ -50,7 +50,6 @@ jobs:
 
       - name: Extract CodeRabbit review body
         env:
-          CHECK_REVIEW_BODY: ${{ github.event || '' }}
           REVIEW_JSON: ${{ toJSON(github.event.review.body || '') }}
         run: |
           COMMENT_BODY=$(echo "$REVIEW_JSON" | jq -r .)
