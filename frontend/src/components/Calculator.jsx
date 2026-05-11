@@ -91,8 +91,7 @@ export default function Calculator() {
         if (label === "." && !canAppendDecimal(previous)) {
           return previous;
         }
-        const mapped = label === "pi" ? "pi" : label;
-        return `${previous}${mapped}`;
+        return `${previous}${label}`;
       });
     },
     [evaluate, memoryValue, result]
