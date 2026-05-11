@@ -6,7 +6,8 @@ class UserManager {
 
   addUser(id, name, email) {
     // Validate inputs
-    if (!id || !name || !email) {
+    const isBlank = (value) => typeof value !== "string" || value.trim() === "";
+    if (id === null || id === undefined || isBlank(name) || isBlank(email)) {
       throw new Error("All fields are required.");
     } 
 
