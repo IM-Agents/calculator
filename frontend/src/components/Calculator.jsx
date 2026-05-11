@@ -1,10 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ButtonGrid from "./ButtonGrid.jsx";
 import Display from "./Display.jsx";
 import HistoryPanel from "./HistoryPanel.jsx";
 import ModeToggle from "./ModeToggle.jsx";
 import { useKeyboardInput } from "../hooks/useKeyboardInput.js";
+import { fetchHistory, postCalculate } from "../services/api.js";
 import { canAppendDecimal, isValidExpression } from "../utils/validateExpression.js";
+
+const MAX_HISTORY_ITEMS = 10;
+
+function mergeHistoryEntries(previous, incoming) {
+  const incomingItems = Array.isArray(incoming) ? incoming : [incoming];
+  const existingIds = new Set(previous.map((item) => item.id));
+  const uniqueIncoming = incomingItems.filter((item) => item && !existingIds.has(item.id));
+  return [...uniqueIncoming, ...previous].slice(0, MAX_HISTORY_ITEMS);
+}
 
 export default function Calculator() {
   const [expression, setExpression] = useState("");
@@ -13,6 +23,7 @@ export default function Calculator() {
   const [memoryValue, setMemoryValue] = useState(0);
   const [history, setHistory] = useState([]);
   const [angleMode, setAngleMode] = useState("DEG");
+  const latestEvalIdRef = useRef(0);
 
   const evaluate = useCallback(async () => {
     if (!isValidExpression(expression)) {
@@ -20,21 +31,21 @@ export default function Calculator() {
       return;
     }
 
+    const evalId = latestEvalIdRef.current + 1;
+    latestEvalIdRef.current = evalId;
+
     try {
       setError("");
-      const response = await fetch("/api/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ expression, angleMode })
-      });
-      const payload = await response.json();
-      if (!payload.success) {
-        throw new Error(payload.error.message);
+      const payload = await postCalculate(expression, angleMode);
+      if (evalId !== latestEvalIdRef.current) {
+        return;
       }
-      setResult(payload.data.result);
-      setHistory((previous) => [payload.data.historyItem, ...previous].slice(0, 10));
+      setResult(payload.result);
+      setHistory((previous) => mergeHistoryEntries(previous, payload.historyItem));
     } catch (requestError) {
+      if (evalId !== latestEvalIdRef.current) {
+        return;
+      }
       setError(requestError.message || "Unable to evaluate expression.");
     }
   }, [angleMode, expression]);
@@ -76,24 +87,26 @@ export default function Calculator() {
         setMemoryValue((value) => value - Number(result));
         return;
       }
-      if (label === "." && !canAppendDecimal(expression)) {
-        return;
-      }
-
-      const mapped = label === "pi" ? "pi" : label;
-      setExpression((value) => `${value}${mapped}`);
+      setExpression((previous) => {
+        if (label === "." && !canAppendDecimal(previous)) {
+          return previous;
+        }
+        const mapped = label === "pi" ? "pi" : label;
+        return `${previous}${mapped}`;
+      });
     },
-    [evaluate, expression, memoryValue, result]
+    [evaluate, memoryValue, result]
   );
 
   useKeyboardInput(onPress);
 
   useEffect(() => {
     async function loadHistory() {
-      const response = await fetch("/api/history", { credentials: "include" });
-      const payload = await response.json();
-      if (payload.success) {
-        setHistory(payload.data.items);
+      try {
+        const payload = await fetchHistory();
+        setHistory((previous) => mergeHistoryEntries(previous, payload.items));
+      } catch (historyError) {
+        setError(historyError.message || "Unable to load history.");
       }
     }
 
