@@ -7,6 +7,38 @@ import { useKeyboardInput } from "../hooks/useKeyboardInput.js";
 import { fetchHistory, postCalculate } from "../services/api.js";
 import { canAppendDecimal, isValidExpression } from "../utils/validateExpression.js";
 
+function historyKey(item) {
+  return item?.id ?? `${item.expression}\0${item.result}\0${item.timestamp ?? ""}`;
+}
+
+function historyTime(item) {
+  const parsed = item.timestamp ? Date.parse(item.timestamp) : NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** Merges server/local lists without clobbering: dedupe by id (fallback key), newest first. */
+function mergeHistory(prev, incoming) {
+  const incomingList = Array.isArray(incoming) ? incoming : incoming ? [incoming] : [];
+  const seen = new Set();
+  const merged = [];
+  for (const item of incomingList) {
+    const key = historyKey(item);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+  for (const item of prev) {
+    const key = historyKey(item);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+  merged.sort((a, b) => historyTime(b) - historyTime(a));
+  return merged.slice(0, 10);
+}
+
 export default function Calculator() {
   const [expression, setExpression] = useState("");
   const [result, setResult] = useState(null);
@@ -37,7 +69,7 @@ export default function Calculator() {
         return;
       }
       setResult(data.result);
-      setHistory((previous) => [data.historyItem, ...previous].slice(0, 10));
+      setHistory((previous) => mergeHistory(previous, data.historyItem));
     } catch (requestError) {
       if (requestId !== evaluateRequestIdRef.current) {
         return;
@@ -109,7 +141,7 @@ export default function Calculator() {
         if (loadId !== historyLoadIdRef.current) {
           return;
         }
-        setHistory(data.items);
+        setHistory((previous) => mergeHistory(previous, data.items ?? []));
       } catch (requestError) {
         if (loadId !== historyLoadIdRef.current) {
           return;
