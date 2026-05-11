@@ -26,13 +26,13 @@ export default function Calculator() {
   const latestEvalIdRef = useRef(0);
 
   const evaluate = useCallback(async () => {
+    const evalId = latestEvalIdRef.current + 1;
+    latestEvalIdRef.current = evalId;
+
     if (!isValidExpression(expression)) {
       setError("Enter an expression.");
       return;
     }
-
-    const evalId = latestEvalIdRef.current + 1;
-    latestEvalIdRef.current = evalId;
 
     try {
       setError("");
@@ -57,6 +57,7 @@ export default function Calculator() {
         void evaluate();
         return;
       }
+      latestEvalIdRef.current += 1;
       if (label === "AC") {
         setExpression("");
         setResult(null);
@@ -99,6 +100,11 @@ export default function Calculator() {
 
   useKeyboardInput(onPress);
 
+  const onAngleModeToggle = useCallback((nextMode) => {
+    latestEvalIdRef.current += 1;
+    setAngleMode(nextMode);
+  }, []);
+
   useEffect(() => {
     async function loadHistory() {
       try {
@@ -115,7 +121,7 @@ export default function Calculator() {
   return (
     <div className="calculator-layout">
       <section className="calculator-panel">
-        <ModeToggle angleMode={angleMode} onToggle={setAngleMode} />
+        <ModeToggle angleMode={angleMode} onToggle={onAngleModeToggle} />
         <Display expression={expression} result={result} error={error} />
         <ButtonGrid onPress={onPress} />
       </section>
