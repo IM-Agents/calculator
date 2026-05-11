@@ -49,16 +49,20 @@ class UserManager {
   }
 }
 
-// Example Usage
-const manager = new UserManager();
+module.exports = UserManager;
 
-manager.addUser(1, "Nirav", "nirav@example.com");
-manager.addUser(2, "John", "john@example.com");
+if (require.main === module) {
+  // Example usage when run directly
+  const manager = new UserManager();
 
-console.log("All Users:", manager.listUsers());
+  manager.addUser(1, "Nirav", "nirav@example.com");
+  manager.addUser(2, "John", "john@example.com");
 
-console.log("User ID 1:", manager.getUserById(1));
+  console.log("All Users:", manager.listUsers());
 
-manager.removeUser(2);
+  console.log("User ID 1:", manager.getUserById(1));
 
-console.log("After Removal:", manager.listUsers());
+  manager.removeUser(2);
+
+  console.log("After Removal:", manager.listUsers());
+}
