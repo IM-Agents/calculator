@@ -4,6 +4,7 @@ import Display from "./Display.jsx";
 import HistoryPanel from "./HistoryPanel.jsx";
 import ModeToggle from "./ModeToggle.jsx";
 import { useKeyboardInput } from "../hooks/useKeyboardInput.js";
+import { fetchHistory, postCalculate } from "../services/api.js";
 import { canAppendDecimal, isValidExpression } from "../utils/validateExpression.js";
 
 export default function Calculator() {
@@ -22,18 +23,9 @@ export default function Calculator() {
 
     try {
       setError("");
-      const response = await fetch("/api/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ expression, angleMode })
-      });
-      const payload = await response.json();
-      if (!payload.success) {
-        throw new Error(payload.error.message);
-      }
-      setResult(payload.data.result);
-      setHistory((previous) => [payload.data.historyItem, ...previous].slice(0, 10));
+      const data = await postCalculate(expression, angleMode);
+      setResult(data.result);
+      setHistory((previous) => [data.historyItem, ...previous].slice(0, 10));
     } catch (requestError) {
       setError(requestError.message || "Unable to evaluate expression.");
     }
@@ -90,10 +82,11 @@ export default function Calculator() {
 
   useEffect(() => {
     async function loadHistory() {
-      const response = await fetch("/api/history", { credentials: "include" });
-      const payload = await response.json();
-      if (payload.success) {
-        setHistory(payload.data.items);
+      try {
+        const data = await fetchHistory();
+        setHistory(data.items);
+      } catch (requestError) {
+        setError(requestError.message || "Unable to load history.");
       }
     }
 
