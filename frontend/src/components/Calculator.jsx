@@ -13,7 +13,7 @@ function mergeHistoryEntries(previous, incoming) {
   const incomingItems = Array.isArray(incoming) ? incoming : [incoming];
   const existingIds = new Set(previous.map((item) => item.id));
   const uniqueIncoming = incomingItems.filter((item) => item && !existingIds.has(item.id));
-  return [...uniqueIncoming, ...previous].slice(0, MAX_HISTORY_ITEMS);
+  return [...previous, ...uniqueIncoming].slice(0, MAX_HISTORY_ITEMS);
 }
 
 export default function Calculator() {
