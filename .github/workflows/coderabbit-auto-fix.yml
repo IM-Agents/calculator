@@ -1,19 +1,22 @@
 name: CodeRabbit Auto Fix
 
 # Let overlapping runs finish so a fetch→ClickUp post is not killed mid-flight (duplicate posts are rarer than empty aggregates).
+# pull_request_review has PR number; status events use commit SHA (no pull_request in payload).
 concurrency:
-  group: coderabbit-fix-${{ github.event.pull_request.number }}
+  group: >-
+    ${{ github.event_name == 'pull_request_review'
+        && format('coderabbit-fix-pr-{0}', github.event.pull_request.number)
+        || format('coderabbit-fix-sha-{0}', github.event.sha) }}
   cancel-in-progress: false
 
-# Run on both submitted + edited review events.
-# CodeRabbit can complete follow-up passes as review edits (no new "submitted"), which otherwise skips ClickUp updates.
+# - pull_request_review: CodeRabbit findings / approvals as GitHub PR reviews.
+# - status: When CodeRabbit has no actionable findings it only sets commit status (context CodeRabbit,
+#   state success, description "Review completed") — no review event, so this path is required for ClickUp.
+#   Workflows using `on: status` are read from the default branch; merge there before relying on this in PRs.
 on:
   pull_request_review:
     types: [submitted, edited]
-  check_run:
-    types: [completed]
-  # pull_request_review:
-  #   types: [submitted]
+  status:
 
 jobs:
   coderabbit_auto_fix:
@@ -34,41 +37,100 @@ jobs:
       # Posted to ClickUp when CodeRabbit leaves no actionable summary content or approves the PR on GitHub.
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
-    if: contains(github.event.review.user.login, 'coderabbit')
+    if: >-
+      (github.event_name == 'pull_request_review'
+        && contains(github.event.review.user.login, 'coderabbit'))
+      || (github.event_name == 'status'
+        && github.event.context == 'CodeRabbit'
+        && github.event.state == 'success'
+        && github.event.description == 'Review completed')
 
     permissions:
       contents: read
       pull-requests: read
-      issues: read
 
     steps:
 
+      - name: Resolve PR context and review body
+        id: ctx
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Only defined for pull_request_review; avoids touching github.event.review on status events.
+          REVIEW_JSON: ${{ github.event_name == 'pull_request_review' && toJSON(github.event.review.body || '') || '' }}
+        run: |
+          set -e
+          echo "has_pr=true" >> "$GITHUB_OUTPUT"
+          EVENT_NAME="${{ github.event_name }}"
+
+          if [ "$EVENT_NAME" = "pull_request_review" ]; then
+            echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
+            echo "HEAD_REF=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_ENV"
+            echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_ENV"
+            echo "TRIGGER_REVIEW_ID=${{ github.event.review.id }}" >> "$GITHUB_ENV"
+            echo "REVIEW_STATE=${{ github.event.review.state }}" >> "$GITHUB_ENV"
+            {
+              echo "COMMENT_BODY<<EOF"
+              printf '%s\n' "$REVIEW_JSON" | jq -r .
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "status" ]; then
+            SHA="${{ github.event.sha }}"
+            REPO="${{ github.repository }}"
+            echo "HEAD_SHA=$SHA" >> "$GITHUB_ENV"
+            echo "TRIGGER_REVIEW_ID=" >> "$GITHUB_ENV"
+            echo "REVIEW_STATE=" >> "$GITHUB_ENV"
+            {
+              echo "COMMENT_BODY<<EOF"
+              echo ""
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+
+            JSON=$(gh api "repos/${REPO}/commits/${SHA}/pulls" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" 2>/dev/null || echo "[]")
+
+            PR_JSON=$(echo "$JSON" | jq -c --arg sha "$SHA" '[.[] | select(.state == "open" and .head.sha == $sha)] | .[0] // empty' 2>/dev/null || echo "")
+            if [ -z "$PR_JSON" ] || [ "$PR_JSON" = "null" ]; then
+              echo "No open PR with head SHA ${SHA}; nothing to do for this status event."
+              echo "has_pr=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            PR_NUM=$(echo "$PR_JSON" | jq -r '.number')
+            HEAD_REF=$(echo "$PR_JSON" | jq -r '.head.ref')
+            echo "PR_NUMBER=$PR_NUM" >> "$GITHUB_ENV"
+            echo "HEAD_REF=$HEAD_REF" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "Unsupported event: $EVENT_NAME"
+          echo "has_pr=false" >> "$GITHUB_OUTPUT"
+          exit 0
+
       - name: Checkout PR branch
+        if: steps.ctx.outputs.has_pr == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ env.HEAD_REF }}
 
-      - name: Extract CodeRabbit review body
-        env:
-          REVIEW_JSON: ${{ toJSON(github.event.review.body || '') }}
-        run: |
-          COMMENT_BODY=$(echo "$REVIEW_JSON" | jq -r .)
-
-          echo "COMMENT_BODY<<EOF" >> $GITHUB_ENV
-          echo "$COMMENT_BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+      - name: No matching PR for status commit
+        if: steps.ctx.outputs.has_pr != 'true'
+        run: echo "Skipping remaining steps (no open PR for this commit or unsupported event)."
 
       # Aggregate ONLY threads for THIS webhook + HEAD — excludes unrelated CR threads left on the same tip.
       # Include every inline comment that belongs to this event (full batch from one CodeRabbit submission).
       # Do NOT take newest-only (.[-1:]): same review often has multiple findings that must all post together.
       - name: Fetch CodeRabbit PR comments for this review (HEAD-scoped)
+        if: steps.ctx.outputs.has_pr == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
           REPOSITORY: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          TRIGGER_REVIEW_ID: ${{ github.event.review.id }}
-          REVIEW_STATE: ${{ github.event.review.state }}
+          HEAD_SHA: ${{ env.HEAD_SHA }}
+          TRIGGER_REVIEW_ID: ${{ env.TRIGGER_REVIEW_ID }}
+          REVIEW_STATE: ${{ env.REVIEW_STATE }}
         run: |
           set -e
           AGG_TEXT=""
@@ -174,16 +236,20 @@ jobs:
           echo "CLICKUP_MATCH_COUNT=${MATCH}" >> "$GITHUB_ENV"
 
       - name: Detect CodeRabbit PR approval
+        if: steps.ctx.outputs.has_pr == 'true'
         id: cu_flags
         run: |
           coderabbit_approval=false
-          if [ "${{ github.event.review.state }}" = "approved" ] \
+          if [ "${{ github.event_name }}" = "pull_request_review" ] \
+            && [ "${{ github.event.review.state }}" = "approved" ] \
             && echo "${{ github.event.review.user.login }}" | grep -qi coderabbit; then
             coderabbit_approval=true
+            echo "CodeRabbit approved this PR — ClickUp will use CLICKUP_NO_IMPROVEMENTS_SUMMARY."
           fi
           echo "coderabbit_approval=${coderabbit_approval}" >> "$GITHUB_OUTPUT"
 
       - name: Skip if nothing to process
+        if: steps.ctx.outputs.has_pr == 'true'
         run: |
           if [ "${{ steps.cu_flags.outputs.coderabbit_approval }}" = "true" ]; then
             echo "CodeRabbit approved the PR — continuing (ClickUp uses CLICKUP_NO_IMPROVEMENTS_SUMMARY)."
@@ -195,8 +261,9 @@ jobs:
           fi
 
       - name: Resolve ClickUp task and validate branch
+        if: steps.ctx.outputs.has_pr == 'true'
         env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REF: ${{ env.HEAD_REF }}
         run: |
           TASK_ID=""
           PROC_BRANCH=""
@@ -275,7 +342,7 @@ jobs:
 
       - name: Post CodeRabbit suggestion to ClickUp
         id: clickup_post
-        if: env.TASK_ID != ''
+        if: steps.ctx.outputs.has_pr == 'true' && env.TASK_ID != ''
         env:
           CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
           IS_CODERABBIT_APPROVAL: ${{ steps.cu_flags.outputs.coderabbit_approval }}
@@ -519,7 +586,7 @@ jobs:
 
       - name: Enforce minimum formatted issues (optional)
         if: >-
-          success() && env.TASK_ID != '' &&
+          success() && steps.ctx.outputs.has_pr == 'true' && env.TASK_ID != '' &&
           vars.CLICKUP_EXPECT_MIN_ISSUES != ''
         env:
           MIN_ISSUES: ${{ vars.CLICKUP_EXPECT_MIN_ISSUES }}
@@ -540,7 +607,7 @@ jobs:
 
       - name: Verify latest ClickUp comment (optional)
         if: >-
-          success() && env.TASK_ID != '' &&
+          success() && steps.ctx.outputs.has_pr == 'true' && env.TASK_ID != '' &&
           vars.CLICKUP_VERIFY_CLICKUP_COMMENT == 'true' &&
           steps.clickup_post.outputs.posted == 'true'
         env:
@@ -579,4 +646,5 @@ jobs:
           echo "ClickUp GET verify passed — newest comment matches formatted issue count."
 
       - name: Finish
+        if: steps.ctx.outputs.has_pr == 'true'
         run: echo "Workflow completed successfully."
