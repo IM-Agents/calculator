@@ -53,6 +53,11 @@
         .buttons button.span-2 {
             grid-column: span 2;
         }
+        .meta {
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+            color: #555;
+        }
     </style>
 </head>
 <body>
@@ -67,6 +72,33 @@
         <li>Read CodeRabbit&rsquo;s <strong>summary</strong> and any <strong>inline</strong> threads for your head commit.</li>
         <li>Treat green or &ldquo;no actionable comments&rdquo; as <strong>not</strong> a substitute for your own merge decision.</li>
       </ol>
+      <details>
+        <summary>What applies to <code>index.html</code> (this file)</summary>
+        <ul>
+          <li>
+            <strong>OMA pre_merge_checks</strong> in <code>.coderabbit.yaml</code> only classify files under
+            <code>frontend/src/</code>, <code>backend/src/</code>, and <code>desktop/src/</code>.
+            Root <code>index.html</code> is called out as ignored for that gate unless it embeds secrets.
+          </li>
+          <li>
+            <strong>HTML path instructions</strong> (<code>**/*.{html,htm}</code>): request changes for invalid HTML,
+            broken parsing or accessibility on changed lines, or XSS-style patterns — not for
+            <code>&lt;title&gt;</code> vs visible copy mismatch, placeholder copy, or &ldquo;repo name vs page name.&rdquo;
+          </li>
+          <li>
+            Stricter rules (no ad-hoc <code>console.log</code>, React <code>key</code>s, no inline <code>style={{ }}</code>, etc.)
+            apply to <code>frontend/src/**</code> only, not to this standalone static page.
+          </li>
+          <li>
+            <code>.github/workflows/*.yml</code> and <code>.coderabbit.yaml</code> are excluded from review via
+            <code>path_filters</code> (<code>!**/*.yml</code>, <code>!**/*.yaml</code>) — workflow and config edits are not in that diff scope.
+          </li>
+        </ul>
+      </details>
+      <p class="meta">
+        Intentional editorial mismatch: the document title stays &ldquo;Calculator&rdquo; while this repo is a CodeRabbit practice workspace.
+        Per <code>.coderabbit.yaml</code>, that mismatch alone must not drive a &ldquo;request changes&rdquo; review on HTML files.
+      </p>
     </section>
   </main>
   <script>
@@ -80,7 +112,12 @@
      * `.github/workflows/coderabbit-auto-fix.yml` (server-side token). Do not call ClickUp from the browser.
      */
     function divide(a, b) {
+      if (b === 0) return Number.NaN;
       return a / b;
+    }
+
+    function multiply(a, b) {
+      return a * b;
     }
 
     /** Reads a numeric query param; prefer Number.parseFloat + Number.isFinite for strict validation. */
