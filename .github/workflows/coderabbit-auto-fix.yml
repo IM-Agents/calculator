@@ -10,8 +10,9 @@ concurrency:
   cancel-in-progress: false
 
 # - pull_request_review: CodeRabbit findings / approvals as GitHub PR reviews.
-# - status: When CodeRabbit has no actionable findings it only sets commit status (context CodeRabbit,
-#   state success, description "Review completed") — no review event, so this path is required for ClickUp.
+# - status: When CodeRabbit finishes without a normal PR review it sets commit status (context CodeRabbit,
+#   state success). Description is often "Review completed" (no findings) or "Review skipped" (e.g. path
+#   filters / nothing to review). Neither fires pull_request_review — filter on these descriptions here.
 #   Workflows using `on: status` are read from the default branch; merge there before relying on this in PRs.
 on:
   pull_request_review:
@@ -34,7 +35,8 @@ jobs:
       CLICKUP_AGENT_RULES: |
         Constraints: edit application source files directly; do not add new .md files to implement fixes.
         Do not change process.md (reserved for automation keys). Only change into the below given code changes writeups.
-      # Posted to ClickUp when CodeRabbit leaves no actionable summary content or approves the PR on GitHub.
+      # Posted to ClickUp when CodeRabbit has no actionable inline content, approves, or ends via
+      # commit status only (Review completed / Review skipped — no PR review body).
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
     if: >-
@@ -43,7 +45,8 @@ jobs:
       || (github.event_name == 'status'
         && github.event.context == 'CodeRabbit'
         && github.event.state == 'success'
-        && github.event.description == 'Review completed')
+        && (github.event.description == 'Review completed'
+          || github.event.description == 'Review skipped'))
 
     permissions:
       contents: read
