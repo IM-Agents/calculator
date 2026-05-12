@@ -1,12 +1,12 @@
 name: CodeRabbit Auto Fix
 
-# Concurrency: same head SHA groups status / check_run / review for one commit.
+# Concurrency: same head SHA — cancel extra runs so status + check_run + review do not POST twice in parallel.
 concurrency:
   group: >-
     ${{ (github.event_name == 'pull_request_review' && format('coderabbit-fix-sha-{0}', github.event.pull_request.head.sha))
         || (github.event_name == 'check_run' && format('coderabbit-fix-sha-{0}', github.event.check_run.head_sha))
         || format('coderabbit-fix-sha-{0}', github.event.sha) }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 # Triggers: pull_request_review (from PR branch) + status + check_run (from default branch only). No on:pull_request.
 on:
@@ -611,13 +611,16 @@ jobs:
             MARK="gh-cr-auto:${DEDUP_SHA}:noimp"
             TASK_COMMENTS=$(curl -s -H "Authorization: $CLICKUP_TOKEN" \
               "https://api.clickup.com/api/v2/task/${TASK_ID}/comment")
-            # ClickUp returns newest-first (see Get Task Comments). No documented ?limit; we only check the latest row.
-            LATEST=$(echo "$TASK_COMMENTS" | jq -c '.comments[0]? // empty' 2>/dev/null || echo "")
-            if [ -n "$LATEST" ] && [ "$LATEST" != "null" ] && echo "$LATEST" | grep -qF "$MARK"; then
-              echo "Skipping ClickUp duplicate: no-improvements marker found on newest task comment (HEAD ${DEDUP_SHA})."
+            # Plain-text ref survives ClickUp storage; HTML comments are often stripped so GET dedupe never matched.
+            HAYSTACK=$(echo "$TASK_COMMENTS" | jq -r '
+              (.comments // [])[]
+              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("\n")
+            ' 2>/dev/null || printf '%s' "$TASK_COMMENTS")
+            if printf '%s' "$HAYSTACK" | grep -qF "$MARK"; then
+              echo "Skipping ClickUp duplicate: no-improvements ref already on task (HEAD ${DEDUP_SHA})."
               exit 0
             fi
-            BLOCK="${SUMMARY}"$'\n\n'"<!-- ${MARK} -->"
+            BLOCK="${SUMMARY}"$'\n\n'"(${MARK})"
           fi
 
           # New task comment each run for issue payloads; no-improvements deduped per HEAD SHA above.
