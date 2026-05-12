@@ -1,19 +1,15 @@
 name: CodeRabbit Auto Fix
 
-# Concurrency: one run per PR; cancel older runs when a new push arrives (new wait targets latest head SHA).
+# Concurrency: same head SHA groups status / check_run / review for one commit.
 concurrency:
-  group: ${{ format('coderabbit-fix-pr-{0}', github.event.pull_request.number) }}
-  cancel-in-progress: true
+  group: >-
+    ${{ (github.event_name == 'pull_request_review' && format('coderabbit-fix-sha-{0}', github.event.pull_request.head.sha))
+        || (github.event_name == 'check_run' && format('coderabbit-fix-sha-{0}', github.event.check_run.head_sha))
+        || format('coderabbit-fix-sha-{0}', github.event.sha) }}
+  cancel-in-progress: false
 
-# - pull_request: Runs from the PR branch workflow file — always shows "CodeRabbit Auto Fix" on the PR checks list.
-#   We poll until the CodeRabbit GitHub App check finishes (skipped / completed / etc.), then ClickUp + comment fetch.
-# - pull_request_review: CodeRabbit findings / approvals as GitHub PR reviews (no polling).
-#
-# Note: We do not rely on `on: check_run` / `on: status` alone — those workflows are only taken from the default
-# branch until merged, and payload quirks can skip the job. pull_request keeps this usable on feature branches.
+# Triggers: pull_request_review (from PR branch) + status + check_run (from default branch only). No on:pull_request.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   pull_request_review:
     types: [submitted, edited]
 
@@ -33,19 +29,29 @@ jobs:
       CLICKUP_AGENT_RULES: |
         Constraints: edit application source files directly; do not add new .md files to implement fixes.
         Do not change process.md (reserved for automation keys). Only change into the below given code changes writeups.
-      # Posted to ClickUp when CodeRabbit has no actionable inline content, approves, or PR head check finished (skipped/completed).
+      # Posted to ClickUp for no parsed issues: approvals, terminal status/check_run (Review skipped/completed), or empty review.
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
     if: >-
-      (github.event_name == 'pull_request'
-        && github.event.pull_request.draft == false)
-      || (github.event_name == 'pull_request_review'
+      (github.event_name == 'pull_request_review'
         && contains(github.event.review.user.login, 'coderabbit'))
+      || (github.event_name == 'status'
+        && github.event.context == 'CodeRabbit'
+        && github.event.state == 'success'
+        && (contains(github.event.description, 'Review completed')
+          || contains(github.event.description, 'Review skipped')))
+      || (github.event_name == 'check_run'
+        && github.event.action == 'completed'
+        && github.event.check_run.app != null
+        && (github.event.check_run.app.slug == 'coderabbitai'
+          || github.event.check_run.app.slug == 'coderabbit')
+        && (github.event.check_run.conclusion == 'success'
+          || github.event.check_run.conclusion == 'skipped'
+          || github.event.check_run.conclusion == 'neutral'))
 
     permissions:
       contents: read
       pull-requests: read
-      checks: read
 
     steps:
 
@@ -53,26 +59,12 @@ jobs:
         id: ctx
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Only defined for pull_request_review; avoids touching github.event.review on pull_request.
+          # Only defined for pull_request_review; avoids touching github.event.review on status/check_run.
           REVIEW_JSON: ${{ github.event_name == 'pull_request_review' && toJSON(github.event.review.body || '') || '' }}
         run: |
           set -e
           echo "has_pr=true" >> "$GITHUB_OUTPUT"
           EVENT_NAME="${{ github.event_name }}"
-
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
-            echo "HEAD_REF=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_ENV"
-            echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_ENV"
-            echo "TRIGGER_REVIEW_ID=" >> "$GITHUB_ENV"
-            echo "REVIEW_STATE=" >> "$GITHUB_ENV"
-            {
-              echo "COMMENT_BODY<<EOF"
-              echo ""
-              echo "EOF"
-            } >> "$GITHUB_ENV"
-            exit 0
-          fi
 
           if [ "$EVENT_NAME" = "pull_request_review" ]; then
             echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
@@ -88,92 +80,70 @@ jobs:
             exit 0
           fi
 
+          if [ "$EVENT_NAME" = "status" ]; then
+            SHA="${{ github.event.sha }}"
+            REPO="${{ github.repository }}"
+            echo "HEAD_SHA=$SHA" >> "$GITHUB_ENV"
+            echo "TRIGGER_REVIEW_ID=" >> "$GITHUB_ENV"
+            echo "REVIEW_STATE=" >> "$GITHUB_ENV"
+            {
+              echo "COMMENT_BODY<<EOF"
+              echo ""
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+
+            JSON=$(gh api "repos/${REPO}/commits/${SHA}/pulls" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" 2>/dev/null || echo "[]")
+
+            PR_JSON=$(echo "$JSON" | jq -c --arg sha "$SHA" '[.[] | select(.state == "open" and .head.sha == $sha)] | .[0] // empty' 2>/dev/null || echo "")
+            if [ -z "$PR_JSON" ] || [ "$PR_JSON" = "null" ]; then
+              echo "No open PR with head SHA ${SHA}; nothing to do for this status event."
+              echo "has_pr=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            PR_NUM=$(echo "$PR_JSON" | jq -r '.number')
+            HEAD_REF=$(echo "$PR_JSON" | jq -r '.head.ref')
+            echo "PR_NUMBER=$PR_NUM" >> "$GITHUB_ENV"
+            echo "HEAD_REF=$HEAD_REF" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "check_run" ]; then
+            SHA="${{ github.event.check_run.head_sha }}"
+            REPO="${{ github.repository }}"
+            echo "HEAD_SHA=$SHA" >> "$GITHUB_ENV"
+            echo "TRIGGER_REVIEW_ID=" >> "$GITHUB_ENV"
+            echo "REVIEW_STATE=" >> "$GITHUB_ENV"
+            {
+              echo "COMMENT_BODY<<EOF"
+              echo ""
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+
+            JSON=$(gh api "repos/${REPO}/commits/${SHA}/pulls" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" 2>/dev/null || echo "[]")
+
+            PR_JSON=$(echo "$JSON" | jq -c --arg sha "$SHA" '[.[] | select(.state == "open" and .head.sha == $sha)] | .[0] // empty' 2>/dev/null || echo "")
+            if [ -z "$PR_JSON" ] || [ "$PR_JSON" = "null" ]; then
+              echo "No open PR with head SHA ${SHA}; nothing to do for this check_run event."
+              echo "has_pr=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            PR_NUM=$(echo "$PR_JSON" | jq -r '.number')
+            HEAD_REF=$(echo "$PR_JSON" | jq -r '.head.ref')
+            echo "PR_NUMBER=$PR_NUM" >> "$GITHUB_ENV"
+            echo "HEAD_REF=$HEAD_REF" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
           echo "Unsupported event: $EVENT_NAME"
           echo "has_pr=false" >> "$GITHUB_OUTPUT"
           exit 0
 
-      # pull_request fires as soon as you push; CodeRabbit runs in parallel (often 5–15+ minutes).
-      # Outputs green_complete=true only when the Checks API shows a terminal GREEN CodeRabbit run — never on timeout.
-      # ClickUp uses CLICKUP_NO_IMPROVEMENTS_SUMMARY only when green_complete=true (avoids false "no issues" while CR is still reviewing).
-      - name: Wait for CodeRabbit check (pull_request only)
-        id: cr_wait
-        if: github.event_name == 'pull_request' && steps.ctx.outputs.has_pr == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          HEAD_SHA: ${{ env.HEAD_SHA }}
-        run: |
-          set -e
-          echo "green_complete=false" >> "$GITHUB_OUTPUT"
-          REPO="${REPOSITORY}"
-          SHA="${HEAD_SHA}"
-          # ~15 min ceiling: CodeRabbit can legitimately run longer than 5 minutes on slow passes.
-          MAX_ATTEMPTS=90
-          SLEEP_SECS=10
-          echo "Polling check runs on ${REPO}@${SHA} for CodeRabbit (every ${SLEEP_SECS}s, max ~$(( MAX_ATTEMPTS * SLEEP_SECS ))s)…"
-          for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
-            # Merge all pages — default page size can hide CodeRabbit when many checks exist on one commit.
-            JSON=$(gh api --paginate "repos/${REPO}/commits/${SHA}/check-runs?per_page=100" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" 2>/dev/null \
-              | jq -s '
-                  map(.check_runs // [])
-                  | add
-                  | if . == null then [] else . end
-                  | {check_runs: .}
-                ' 2>/dev/null || echo '{"check_runs":[]}')
-
-            # Terminal green outcomes: success / skipped / neutral (matches PR UI when review is skipped).
-            DONE=$(echo "$JSON" | jq -r '
-              .check_runs // []
-              | map(select(
-                  (.app.slug? == "coderabbitai" or .app.slug? == "coderabbit")
-                  or (.name? != null and (.name | ascii_downcase | contains("coderabbit")))
-                ))
-              | map(select(.status == "completed"))
-              | map(select(.conclusion == "success" or .conclusion == "skipped" or .conclusion == "neutral"))
-              | if length > 0 then .[0].id else empty end
-            ' 2>/dev/null || echo "")
-
-            # Stop waiting if CodeRabbit finished with a non-green conclusion (failure, cancelled, etc.).
-            BAD=$(echo "$JSON" | jq -r '
-              .check_runs // []
-              | map(select(
-                  (.app.slug? == "coderabbitai" or .app.slug? == "coderabbit")
-                  or (.name? != null and (.name | ascii_downcase | contains("coderabbit")))
-                ))
-              | map(select(.status == "completed"))
-              | map(select(
-                  .conclusion != null
-                  and .conclusion != "success"
-                  and .conclusion != "skipped"
-                  and .conclusion != "neutral"
-                ))
-              | if length > 0 then .[0].id else empty end
-            ' 2>/dev/null || echo "")
-
-            if [ -n "$BAD" ] && [ "$BAD" != "null" ]; then
-              echo "CodeRabbit check run completed with non-success conclusion; continuing without waiting further."
-              exit 0
-            fi
-
-            if [ -n "$DONE" ] && [ "$DONE" != "null" ]; then
-              echo "green_complete=true" >> "$GITHUB_OUTPUT"
-              echo "CodeRabbit check run finished (completed, ok conclusion). attempt=${attempt}"
-              exit 0
-            fi
-
-            if [ $((attempt % 6)) -eq 0 ]; then
-              HINT=$(echo "$JSON" | jq -c '[.check_runs[]? | select((.app.slug? == "coderabbitai" or .app.slug? == "coderabbit") or (.name? != null and (.name | ascii_downcase | contains("coderabbit")))) | {name,status,conclusion}]' 2>/dev/null || echo "[]")
-              echo "Still waiting for CodeRabbit terminal check… attempt=${attempt}/${MAX_ATTEMPTS} runs=${HINT}"
-            fi
-
-            if [ "${attempt}" -lt "${MAX_ATTEMPTS}" ]; then
-              sleep "${SLEEP_SECS}"
-            fi
-          done
-          echo "::warning::Timed out waiting for CodeRabbit check run; green_complete remains false — will not post CLICKUP_NO_IMPROVEMENTS_SUMMARY unless review comments exist."
-
+      # status / check_run: job if already means CodeRabbit finished with a terminal green signal — safe to allow
+      # CLICKUP_NO_IMPROVEMENTS_SUMMARY when there are no parsed issues. No pull_request polling (removed).
       - name: Set ClickUp no-improvements gate
         id: cr_gate
         if: steps.ctx.outputs.has_pr == 'true'
@@ -181,16 +151,10 @@ jobs:
           set -e
           case "${{ github.event_name }}" in
             pull_request_review)
-              # Review webhook: approval / empty body logic is authoritative; allow no-improvements path when applicable.
               echo "allow_no_improvements_summary=true" >> "$GITHUB_OUTPUT"
               ;;
-            pull_request)
-              if [ "${{ steps.cr_wait.outputs.green_complete }}" = "true" ]; then
-                echo "allow_no_improvements_summary=true" >> "$GITHUB_OUTPUT"
-              else
-                echo "allow_no_improvements_summary=false" >> "$GITHUB_OUTPUT"
-                echo "::notice::CodeRabbit did not reach a terminal green check in time — skipping 'no improvements' ClickUp comment (review may still be running; a later run can post findings)."
-              fi
+            status|check_run)
+              echo "allow_no_improvements_summary=true" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "allow_no_improvements_summary=false" >> "$GITHUB_OUTPUT"
