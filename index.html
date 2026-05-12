@@ -11,7 +11,7 @@
     <p>Hello World</p>
     <section aria-labelledby="cr-check-heading">
       <h2 id="cr-check-heading">CodeRabbit check (human)</h2>
-      <p>After  data adde into my this bot runs, use this on the PR in GitHub:</p>
+      <p>After you push, CodeRabbit runs on the PR in GitHub (not in this page). Use this checklist there:</p>
       <ol>
         <li>Open <strong>Files changed</strong> and review the diff.</li>
         <li>Read CodeRabbit&rsquo;s <strong>summary</strong> and any <strong>inline</strong> threads for your head commit.</li>
@@ -23,6 +23,21 @@
     /** Demo helper; used by tests or future UI wiring. */
     function add(a, b) {
       return a + b;
+    }
+
+    /**
+     * CodeRabbit reviews this file on GitHub; findings sync to ClickUp via
+     * `.github/workflows/coderabbit-auto-fix.yml` (server-side token). Do not call ClickUp from the browser.
+     */
+    function divide(a, b) {
+      return a / b;
+    }
+
+    /** Reads a numeric query param; prefer Number.parseFloat + Number.isFinite for strict validation. */
+    function readDemoNumber(name, fallback) {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get(name);
+      return raw === null || raw === '' ? fallback : Number(raw);
     }
   </script>
 </body>
