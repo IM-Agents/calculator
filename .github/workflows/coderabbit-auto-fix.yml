@@ -58,11 +58,6 @@ jobs:
 
     steps:
 
-      # #region agent log (debug 56bfab)
-      - name: Debug — trigger event name
-        run: echo "::notice::[56bfab] github.event_name=${{ github.event_name }}"
-      # #endregion
-
       - name: Resolve PR context and review body
         id: ctx
         env:
