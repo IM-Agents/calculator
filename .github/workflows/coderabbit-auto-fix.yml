@@ -12,6 +12,9 @@ concurrency:
 on:
   pull_request_review:
     types: [submitted, edited]
+  status:
+  check_run:
+    types: [completed]
 
 jobs:
   coderabbit_auto_fix:
@@ -54,6 +57,11 @@ jobs:
       pull-requests: read
 
     steps:
+
+      # #region agent log (debug 56bfab)
+      - name: Debug — trigger event name
+        run: echo "::notice::[56bfab] github.event_name=${{ github.event_name }}"
+      # #endregion
 
       - name: Resolve PR context and review body
         id: ctx
