@@ -133,6 +133,20 @@
         }
 
         /**
+         * Divides a by b. Callers must catch: divide throws on division by zero.
+         * @param {number} a dividend
+         * @param {number} b divisor
+         * @returns {number}
+         * @throws {Error} Division by zero when b is 0
+         */
+        function divide(a, b) {
+            if (b === 0) {
+                throw new Error('Division by zero');
+            }
+            return a / b;
+        }
+
+        /**
          * Evaluates a numeric expression (+ − × /, parentheses, decimals) without eval/Function.
          * @param {string} expr
          * @returns {number|string}
@@ -175,8 +189,7 @@
                 while (peek() && peek().type === 'op' && (peek().value === '*' || peek().value === '/')) {
                     const op = consume().value;
                     const right = parseFactor();
-                    if (op === '/' && right === 0) throw new Error('Division by zero');
-                    left = op === '*' ? left * right : left / right;
+                    left = op === '*' ? left * right : divide(left, right);
                 }
                 return left;
             }
