@@ -1,25 +1,21 @@
 name: CodeRabbit Auto Fix
 
-# Let overlapping runs finish so a fetch→ClickUp post is not killed mid-flight (duplicate posts are rarer than empty aggregates).
-# pull_request_review has PR number; status/check_run events use commit SHA (no pull_request in payload).
+# Concurrency: one run per PR; cancel older runs when a new push arrives (new wait targets latest head SHA).
 concurrency:
-  group: >-
-    ${{ (github.event_name == 'pull_request_review' && format('coderabbit-fix-pr-{0}', github.event.pull_request.number))
-        || (github.event_name == 'check_run' && format('coderabbit-fix-sha-{0}', github.event.check_run.head_sha))
-        || format('coderabbit-fix-sha-{0}', github.event.sha) }}
-  cancel-in-progress: false
+  group: ${{ format('coderabbit-fix-pr-{0}', github.event.pull_request.number) }}
+  cancel-in-progress: true
 
-# - pull_request_review: CodeRabbit findings / approvals as GitHub PR reviews.
-# - status: Legacy commit statuses (context CodeRabbit, state success, description Review completed/skipped).
-# - check_run: CodeRabbit uses GitHub Checks (app slug coderabbitai). The UI "CodeRabbit — Review skipped"
-#   is usually a completed check run, which does NOT emit `status` — so check_run is required for ClickUp.
-#   Workflows using status/check_run are read from the default branch; merge there before relying on this in PRs.
+# - pull_request: Runs from the PR branch workflow file — always shows "CodeRabbit Auto Fix" on the PR checks list.
+#   We poll until the CodeRabbit GitHub App check finishes (skipped / completed / etc.), then ClickUp + comment fetch.
+# - pull_request_review: CodeRabbit findings / approvals as GitHub PR reviews (no polling).
+#
+# Note: We do not rely on `on: check_run` / `on: status` alone — those workflows are only taken from the default
+# branch until merged, and payload quirks can skip the job. pull_request keeps this usable on feature branches.
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
   pull_request_review:
     types: [submitted, edited]
-  status:
-  check_run:
-    types: [completed]
 
 jobs:
   coderabbit_auto_fix:
@@ -37,30 +33,19 @@ jobs:
       CLICKUP_AGENT_RULES: |
         Constraints: edit application source files directly; do not add new .md files to implement fixes.
         Do not change process.md (reserved for automation keys). Only change into the below given code changes writeups.
-      # Posted to ClickUp when CodeRabbit has no actionable inline content, approves, or ends via
-      # commit status only (Review completed / Review skipped — no PR review body).
+      # Posted to ClickUp when CodeRabbit has no actionable inline content, approves, or PR head check finished (skipped/completed).
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
     if: >-
-      (github.event_name == 'pull_request_review'
+      (github.event_name == 'pull_request'
+        && github.event.pull_request.draft == false)
+      || (github.event_name == 'pull_request_review'
         && contains(github.event.review.user.login, 'coderabbit'))
-      || (github.event_name == 'status'
-        && github.event.context == 'CodeRabbit'
-        && github.event.state == 'success'
-        && (contains(github.event.description, 'Review completed')
-          || contains(github.event.description, 'Review skipped')))
-      || (github.event_name == 'check_run'
-        && github.event.action == 'completed'
-        && github.event.check_run.app != null
-        && (github.event.check_run.app.slug == 'coderabbitai'
-          || github.event.check_run.app.slug == 'coderabbit')
-        && (github.event.check_run.conclusion == 'success'
-          || github.event.check_run.conclusion == 'skipped'
-          || github.event.check_run.conclusion == 'neutral'))
 
     permissions:
       contents: read
       pull-requests: read
+      checks: read
 
     steps:
 
@@ -68,12 +53,26 @@ jobs:
         id: ctx
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Only defined for pull_request_review; avoids touching github.event.review on status events.
+          # Only defined for pull_request_review; avoids touching github.event.review on pull_request.
           REVIEW_JSON: ${{ github.event_name == 'pull_request_review' && toJSON(github.event.review.body || '') || '' }}
         run: |
           set -e
           echo "has_pr=true" >> "$GITHUB_OUTPUT"
           EVENT_NAME="${{ github.event_name }}"
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
+            echo "HEAD_REF=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_ENV"
+            echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_ENV"
+            echo "TRIGGER_REVIEW_ID=" >> "$GITHUB_ENV"
+            echo "REVIEW_STATE=" >> "$GITHUB_ENV"
+            {
+              echo "COMMENT_BODY<<EOF"
+              echo ""
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            exit 0
+          fi
 
           if [ "$EVENT_NAME" = "pull_request_review" ]; then
             echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
@@ -89,67 +88,45 @@ jobs:
             exit 0
           fi
 
-          if [ "$EVENT_NAME" = "status" ]; then
-            SHA="${{ github.event.sha }}"
-            REPO="${{ github.repository }}"
-            echo "HEAD_SHA=$SHA" >> "$GITHUB_ENV"
-            echo "TRIGGER_REVIEW_ID=" >> "$GITHUB_ENV"
-            echo "REVIEW_STATE=" >> "$GITHUB_ENV"
-            {
-              echo "COMMENT_BODY<<EOF"
-              echo ""
-              echo "EOF"
-            } >> "$GITHUB_ENV"
-
-            JSON=$(gh api "repos/${REPO}/commits/${SHA}/pulls" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" 2>/dev/null || echo "[]")
-
-            PR_JSON=$(echo "$JSON" | jq -c --arg sha "$SHA" '[.[] | select(.state == "open" and .head.sha == $sha)] | .[0] // empty' 2>/dev/null || echo "")
-            if [ -z "$PR_JSON" ] || [ "$PR_JSON" = "null" ]; then
-              echo "No open PR with head SHA ${SHA}; nothing to do for this status event."
-              echo "has_pr=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            PR_NUM=$(echo "$PR_JSON" | jq -r '.number')
-            HEAD_REF=$(echo "$PR_JSON" | jq -r '.head.ref')
-            echo "PR_NUMBER=$PR_NUM" >> "$GITHUB_ENV"
-            echo "HEAD_REF=$HEAD_REF" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          if [ "$EVENT_NAME" = "check_run" ]; then
-            SHA="${{ github.event.check_run.head_sha }}"
-            REPO="${{ github.repository }}"
-            echo "HEAD_SHA=$SHA" >> "$GITHUB_ENV"
-            echo "TRIGGER_REVIEW_ID=" >> "$GITHUB_ENV"
-            echo "REVIEW_STATE=" >> "$GITHUB_ENV"
-            {
-              echo "COMMENT_BODY<<EOF"
-              echo ""
-              echo "EOF"
-            } >> "$GITHUB_ENV"
-
-            JSON=$(gh api "repos/${REPO}/commits/${SHA}/pulls" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" 2>/dev/null || echo "[]")
-
-            PR_JSON=$(echo "$JSON" | jq -c --arg sha "$SHA" '[.[] | select(.state == "open" and .head.sha == $sha)] | .[0] // empty' 2>/dev/null || echo "")
-            if [ -z "$PR_JSON" ] || [ "$PR_JSON" = "null" ]; then
-              echo "No open PR with head SHA ${SHA}; nothing to do for this check_run event."
-              echo "has_pr=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            PR_NUM=$(echo "$PR_JSON" | jq -r '.number')
-            HEAD_REF=$(echo "$PR_JSON" | jq -r '.head.ref')
-            echo "PR_NUMBER=$PR_NUM" >> "$GITHUB_ENV"
-            echo "HEAD_REF=$HEAD_REF" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
           echo "Unsupported event: $EVENT_NAME"
           echo "has_pr=false" >> "$GITHUB_OUTPUT"
           exit 0
+
+      - name: Wait for CodeRabbit check (pull_request only)
+        if: github.event_name == 'pull_request' && steps.ctx.outputs.has_pr == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ env.HEAD_SHA }}
+        run: |
+          set -e
+          REPO="${REPOSITORY}"
+          SHA="${HEAD_SHA}"
+          echo "Polling check runs on ${REPO}@${SHA} for CodeRabbit (coderabbitai / name match)…"
+          for attempt in $(seq 1 45); do
+            JSON=$(gh api "repos/${REPO}/commits/${SHA}/check-runs" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" 2>/dev/null || echo '{"check_runs":[]}')
+            # Terminal green outcomes: success / skipped / neutral (matches PR UI when review is skipped).
+            DONE=$(echo "$JSON" | jq -r '
+              .check_runs // []
+              | map(select(
+                  (.app.slug? == "coderabbitai" or .app.slug? == "coderabbit")
+                  or (.name? != null and (.name | ascii_downcase | contains("coderabbit")))
+                ))
+              | map(select(.status == "completed"))
+              | map(select(.conclusion == "success" or .conclusion == "skipped" or .conclusion == "neutral"))
+              | if length > 0 then .[0].id else empty end
+            ' 2>/dev/null || echo "")
+            if [ -n "$DONE" ] && [ "$DONE" != "null" ]; then
+              echo "CodeRabbit check run finished (completed, ok conclusion). attempt=${attempt}"
+              exit 0
+            fi
+            if [ "$attempt" -lt 45 ]; then
+              sleep 10
+            fi
+          done
+          echo "::warning::Timed out waiting for CodeRabbit check run; continuing (comments may still be settling)."
 
       - name: Checkout PR branch
         if: steps.ctx.outputs.has_pr == 'true'
@@ -157,9 +134,9 @@ jobs:
         with:
           ref: ${{ env.HEAD_REF }}
 
-      - name: No matching PR for status/check_run commit
+      - name: No matching PR context
         if: steps.ctx.outputs.has_pr != 'true'
-        run: echo "Skipping remaining steps (no open PR for this commit or unsupported event)."
+        run: echo "Skipping remaining steps (no PR context for this event)."
 
       # Aggregate ONLY threads for THIS webhook + HEAD — excludes unrelated CR threads left on the same tip.
       # Include every inline comment that belongs to this event (full batch from one CodeRabbit submission).
