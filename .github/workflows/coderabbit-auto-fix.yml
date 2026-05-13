@@ -1,9 +1,9 @@
 name: CodeRabbit Auto Fix
 
-# Concurrency: one active run per PR head SHA (review, status, and check_run share the same group).
+# Concurrency: one active run per PR head SHA; queue later events so ClickUp dedupe sees prior posts.
 concurrency:
   group: coderabbit-fix-${{ github.event.pull_request.head.sha || github.event.check_run.head_sha || github.event.sha }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 # Triggers: pull_request_review (from PR branch) + status + check_run (from default branch only). No on:pull_request.
 on:
@@ -646,8 +646,7 @@ jobs:
 
           # status + pull_request_review also fire for the same terminal review; check_run posts once.
           if [ "${POST_KIND:-}" = "no_improvements" ] \
-            && [ "${TRIGGER_EVENT:-}" != "check_run" ] \
-            && [ "${IS_CODERABBIT_APPROVAL:-false}" != "true" ]; then
+            && [ "${TRIGGER_EVENT:-}" != "check_run" ]; then
             echo "Skipping terminal no-improvements on ${TRIGGER_EVENT:-unknown}; check_run publishes the single ClickUp comment."
             exit 0
           fi
@@ -657,14 +656,6 @@ jobs:
           BLOCK="$SUMMARY"
           TASK_COMMENTS=""
           HAYSTACK=""
-          if [ -n "${TASK_ID:-}" ]; then
-            TASK_COMMENTS=$(curl -s -H "Authorization: $CLICKUP_TOKEN" \
-              "https://api.clickup.com/api/v2/task/${TASK_ID}/comment")
-            HAYSTACK=$(echo "$TASK_COMMENTS" | jq -r '
-              (.comments // [])[]
-              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("\n")
-            ' 2>/dev/null || true)
-          fi
 
           task_has_issue_post() {
             local sha="$1"
@@ -690,44 +681,71 @@ jobs:
             return 1
           }
 
+          refresh_task_comments() {
+            if [ -z "${TASK_ID:-}" ]; then
+              return 0
+            fi
+            local merged='[]'
+            local page=0
+            local start_id=""
+            while [ "$page" -lt 10 ]; do
+              local url="https://api.clickup.com/api/v2/task/${TASK_ID}/comment"
+              if [ -n "$start_id" ]; then
+                url="${url}?start_id=${start_id}"
+              fi
+              local chunk
+              chunk=$(curl -s -H "Authorization: $CLICKUP_TOKEN" "$url")
+              if [ -z "$chunk" ] || [ "$chunk" = "null" ]; then
+                break
+              fi
+              merged=$(printf '%s' "$chunk" | jq -c --argjson acc "$merged" '
+                ($acc + (.comments // [])) | unique_by(.id)
+              ' 2>/dev/null || echo "$merged")
+              start_id=$(printf '%s' "$chunk" | jq -r '.comments[-1].id // empty' 2>/dev/null || true)
+              local count
+              count=$(printf '%s' "$chunk" | jq -r '(.comments // []) | length' 2>/dev/null || echo "0")
+              if [ -z "$start_id" ] || [ "$count" -lt 25 ]; then
+                break
+              fi
+              page=$((page + 1))
+            done
+            TASK_COMMENTS=$(jq -nc --argjson comments "$merged" '{comments:$comments}')
+            HAYSTACK=$(echo "$TASK_COMMENTS" | jq -r '
+              .comments[]
+              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("\n")
+            ' 2>/dev/null || true)
+          }
+
           task_has_no_improvements_comment() {
-            if [ -z "$TASK_COMMENTS" ]; then
+            if [ -z "$TASK_COMMENTS" ] || [ "$TASK_COMMENTS" = "null" ]; then
               return 1
             fi
+            if printf '%s' "$TASK_COMMENTS" | grep -qi 'No improvements needed'; then
+              return 0
+            fi
+            if printf '%s' "$TASK_COMMENTS" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
+              return 0
+            fi
             if echo "$TASK_COMMENTS" | jq -e --arg summary "$CLICKUP_NO_IMPROVEMENTS_SUMMARY" '
-              [.comments // []
-              | sort_by((.date | tonumber?) // 0)
-              | reverse
-              | .[0:10][]
+              .comments[]
               | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("")
               | select(
                   (index($summary) != null)
                   or (test("No improvements needed"; "i"))
                 )
-              ] | length > 0
             ' >/dev/null 2>&1; then
-              return 0
-            fi
-            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
               return 0
             fi
             if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qi 'No improvements needed'; then
               return 0
             fi
+            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
+              return 0
+            fi
             return 1
           }
 
-          refresh_task_comments() {
-            if [ -z "${TASK_ID:-}" ]; then
-              return 0
-            fi
-            TASK_COMMENTS=$(curl -s -H "Authorization: $CLICKUP_TOKEN" \
-              "https://api.clickup.com/api/v2/task/${TASK_ID}/comment")
-            HAYSTACK=$(echo "$TASK_COMMENTS" | jq -r '
-              (.comments // [])[]
-              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("\n")
-            ' 2>/dev/null || true)
-          }
+          refresh_task_comments
 
           # status + check_run + pull_request_review can each queue a run for the same HEAD — one ClickUp comment per SHA:
           # issues win over no-improvements; dedupe via Actions cache + ClickUp ref tokens.
