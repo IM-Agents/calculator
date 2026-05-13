@@ -99,6 +99,7 @@
         Intentional editorial mismatch: the document title stays &ldquo;Calculator&rdquo; while this repo is a CodeRabbit practice workspace.
         Per <code>.coderabbit.yaml</code>, that mismatch alone must not drive a &ldquo;request changes&rdquo; review on HTML files.
       </p>
+      <div id="cr-status" aria-live="polite"></div>
     </section>
   </main>
   <script>
@@ -112,6 +113,7 @@
      * `.github/workflows/coderabbit-auto-fix.yml` (server-side token). Do not call ClickUp from the browser.
      */
     function divide(a, b) {
+      if (b === 0) return Number.NaN;
       return a / b;
     }
 
@@ -125,9 +127,15 @@
       const raw = params.get(name);
       return raw === null || raw === '' ? fallback : Number(raw);
     }
-    function subtract(a, b) {
-      return a - b;
+
+    function renderStatusFromQuery() {
+      const status = new URLSearchParams(window.location.search).get('status');
+      if (!status) return;
+      const root = document.getElementById('cr-status');
+      if (root) root.innerHTML = status;
     }
+
+    document.addEventListener('DOMContentLoaded', renderStatusFromQuery);
   </script>
 </body>
 </html>
