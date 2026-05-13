@@ -395,13 +395,13 @@ jobs:
           echo "Final ClickUp task id: ${TASK_ID:-<empty>}"
           echo "ClickUp assignee user id (workflow CLICKUP_ASSIGNEE_USER_ID): ${CLICKUP_ASSIGNEE_USER_ID}"
 
-      # One flag per (task, PR head SHA): survives ClickUp API quirks and serializes with cancel-in-progress.
+      # One post per (task, PR head SHA): issues and no-improvements share the same dedupe gate.
       - uses: actions/cache@v4
-        id: cu_noimp_flag
+        id: cu_post_flag
         if: steps.ctx.outputs.has_pr == 'true' && env.TASK_ID != '' && env.HEAD_SHA != ''
         with:
-          path: .cu-noimp
-          key: cu-noimp-v1-${{ github.repository }}-${{ env.TASK_ID }}-${{ env.HEAD_SHA }}
+          path: .cu-post
+          key: cu-post-v1-${{ github.repository }}-${{ env.TASK_ID }}-${{ env.HEAD_SHA }}
 
       - name: Post CodeRabbit suggestion to ClickUp
         id: clickup_post
@@ -614,32 +614,51 @@ jobs:
 
           DEDUP_SHA="${HEAD_SHA_FOR_POST:-${HEAD_SHA:-}}"
           BLOCK="$SUMMARY"
-          # status + check_run + pull_request_review can each queue a run for the same HEAD — dedupe three ways:
-          # (1) Actions cache file restored before this step (2) raw ClickUp JSON grep (3) jq-flattened comment text.
-          if [ "${POST_KIND:-}" = "no_improvements" ] && [ -n "${DEDUP_SHA}" ] && [ -n "${TASK_ID:-}" ]; then
-            MARK="gh-cr-auto:${DEDUP_SHA}:noimp"
-            if [ -f .cu-noimp/sent ] || [ "${{ steps.cu_noimp_flag.outputs.cache-hit }}" = "true" ]; then
-              echo "Skipping ClickUp duplicate: no-improvements already recorded for task ${TASK_ID} @ ${DEDUP_SHA} (Actions cache)."
+          # status + check_run + pull_request_review can each queue a run for the same HEAD — one ClickUp comment per SHA:
+          # issues win over no-improvements; dedupe via Actions cache + ClickUp ref tokens.
+          if [ -n "${DEDUP_SHA}" ] && [ -n "${TASK_ID:-}" ]; then
+            MARK_ISSUES="gh-cr-auto:${DEDUP_SHA}:issues"
+            MARK_NOIMP="gh-cr-auto:${DEDUP_SHA}:noimp"
+            if [ -f .cu-post/sent ] || [ "${{ steps.cu_post_flag.outputs.cache-hit }}" = "true" ]; then
+              echo "Skipping ClickUp duplicate: post already recorded for task ${TASK_ID} @ ${DEDUP_SHA} (Actions cache)."
               exit 0
             fi
             TASK_COMMENTS=$(curl -s -H "Authorization: $CLICKUP_TOKEN" \
               "https://api.clickup.com/api/v2/task/${TASK_ID}/comment")
-            if printf '%s' "$TASK_COMMENTS" | grep -qF "$MARK"; then
-              echo "Skipping ClickUp duplicate: ref token found in task comment API payload (HEAD ${DEDUP_SHA})."
+            if printf '%s' "$TASK_COMMENTS" | grep -qF "$MARK_ISSUES"; then
+              echo "Skipping ClickUp duplicate: issues ref token found for HEAD ${DEDUP_SHA}."
               exit 0
             fi
             HAYSTACK=$(echo "$TASK_COMMENTS" | jq -r '
               (.comments // [])[]
               | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("\n")
             ' 2>/dev/null || true)
-            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$MARK"; then
-              echo "Skipping ClickUp duplicate: ref token found in parsed comment bodies (HEAD ${DEDUP_SHA})."
+            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$MARK_ISSUES"; then
+              echo "Skipping ClickUp duplicate: issues ref token found in parsed comment bodies (HEAD ${DEDUP_SHA})."
               exit 0
             fi
-            BLOCK="${SUMMARY}"$'\n\n'"(${MARK})"
+            if [ "${POST_KIND:-}" = "no_improvements" ]; then
+              if printf '%s' "$TASK_COMMENTS" | grep -qF "$MARK_NOIMP"; then
+                echo "Skipping ClickUp duplicate: no-improvements ref token found for HEAD ${DEDUP_SHA}."
+                exit 0
+              fi
+              if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$MARK_NOIMP"; then
+                echo "Skipping ClickUp duplicate: no-improvements ref token found in parsed comment bodies (HEAD ${DEDUP_SHA})."
+                exit 0
+              fi
+              if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF '### Issue '; then
+                echo "Skipping ClickUp no-improvements: issue comment already exists for HEAD ${DEDUP_SHA}."
+                exit 0
+              fi
+            fi
+            if [ "${POST_KIND:-}" = "issues" ]; then
+              BLOCK="${SUMMARY}"$'\n\n'"(${MARK_ISSUES})"
+            else
+              BLOCK="${SUMMARY}"$'\n\n'"(${MARK_NOIMP})"
+            fi
           fi
 
-          # New task comment each run for issue payloads; no-improvements deduped per HEAD SHA above.
+          # New task comment each run for issue payloads; deduped per HEAD SHA above.
           HTTP_CODE=""
           RESP=""
 
@@ -678,9 +697,9 @@ jobs:
             fi
           else
             echo "posted=true" >> "$GITHUB_OUTPUT"
-            if [ "${POST_KIND:-}" = "no_improvements" ] && [ -n "${DEDUP_SHA:-}" ]; then
-              mkdir -p .cu-noimp
-              printf '%s\n' "${DEDUP_SHA}" > .cu-noimp/sent
+            if [ -n "${DEDUP_SHA:-}" ]; then
+              mkdir -p .cu-post
+              printf '%s\n' "${DEDUP_SHA}" > .cu-post/sent
             fi
           fi
 
