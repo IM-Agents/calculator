@@ -695,14 +695,35 @@ jobs:
             if [ -z "$TASK_COMMENTS" ]; then
               return 1
             fi
-            latest=$(echo "$TASK_COMMENTS" | jq -r '.comments[0].comment_text // empty' 2>/dev/null || true)
-            if [ -z "$latest" ]; then
-              latest=$(echo "$TASK_COMMENTS" | jq -r '[.comments[0].comment[]? | .text // empty] | join("")' 2>/dev/null || true)
-            fi
+            latest=$(echo "$TASK_COMMENTS" | jq -r '
+              (.comments // [])
+              | sort_by((.date | tonumber? // 0))
+              | reverse
+              | .[0]
+              | if . == null then empty
+                else [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))]
+                  | join("")
+                end
+            ' 2>/dev/null || true)
             if [ -z "$latest" ]; then
               return 1
             fi
-            printf '%s' "$latest" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"
+            if printf '%s' "$latest" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
+              return 0
+            fi
+            printf '%s' "$latest" | grep -qi 'No improvements needed'
+          }
+
+          refresh_task_comments() {
+            if [ -z "${TASK_ID:-}" ]; then
+              return 0
+            fi
+            TASK_COMMENTS=$(curl -s -H "Authorization: $CLICKUP_TOKEN" \
+              "https://api.clickup.com/api/v2/task/${TASK_ID}/comment")
+            HAYSTACK=$(echo "$TASK_COMMENTS" | jq -r '
+              (.comments // [])[]
+              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("\n")
+            ' 2>/dev/null || true)
           }
 
           # status + check_run + pull_request_review can each queue a run for the same HEAD — one ClickUp comment per SHA:
@@ -763,6 +784,19 @@ jobs:
                 BLOCK="${BLOCK}"$'\n\n'"(${MARK_PR_NOIMP})"
               fi
             fi
+          fi
+
+          if [ "${POST_KIND:-}" = "no_improvements" ]; then
+            for poll in 1 2 3; do
+              if latest_task_comment_is_no_improvements; then
+                echo "Skipping ClickUp duplicate: latest task comment is already the no-improvements summary (pre-post check ${poll}/3)."
+                exit 0
+              fi
+              if [ "$poll" -lt 3 ]; then
+                sleep 4
+                refresh_task_comments
+              fi
+            done
           fi
 
           # New task comment each run for issue payloads; deduped per HEAD SHA above.
