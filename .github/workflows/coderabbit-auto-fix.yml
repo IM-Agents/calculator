@@ -690,6 +690,21 @@ jobs:
             return 1
           }
 
+          latest_task_comment_is_no_improvements() {
+            local latest=""
+            if [ -z "$TASK_COMMENTS" ]; then
+              return 1
+            fi
+            latest=$(echo "$TASK_COMMENTS" | jq -r '.comments[0].comment_text // empty' 2>/dev/null || true)
+            if [ -z "$latest" ]; then
+              latest=$(echo "$TASK_COMMENTS" | jq -r '[.comments[0].comment[]? | .text // empty] | join("")' 2>/dev/null || true)
+            fi
+            if [ -z "$latest" ]; then
+              return 1
+            fi
+            printf '%s' "$latest" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"
+          }
+
           # status + check_run + pull_request_review can each queue a run for the same HEAD — one ClickUp comment per SHA:
           # issues win over no-improvements; dedupe via Actions cache + ClickUp ref tokens.
           if [ -n "${DEDUP_SHA}" ] && [ -n "${TASK_ID:-}" ]; then
@@ -735,8 +750,8 @@ jobs:
                 echo "Skipping ClickUp duplicate: no-improvements ref token found in parsed comment bodies (PR #${PR_NUM})."
                 exit 0
               fi
-              if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
-                echo "Skipping ClickUp duplicate: no-improvements summary already exists on this task."
+              if latest_task_comment_is_no_improvements; then
+                echo "Skipping ClickUp duplicate: latest task comment is already the no-improvements summary."
                 exit 0
               fi
             fi
