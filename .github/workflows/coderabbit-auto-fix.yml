@@ -690,28 +690,31 @@ jobs:
             return 1
           }
 
-          latest_task_comment_is_no_improvements() {
-            local latest=""
+          task_has_no_improvements_comment() {
             if [ -z "$TASK_COMMENTS" ]; then
               return 1
             fi
-            latest=$(echo "$TASK_COMMENTS" | jq -r '
-              (.comments // [])
-              | sort_by((.date | tonumber? // 0))
+            if echo "$TASK_COMMENTS" | jq -e --arg summary "$CLICKUP_NO_IMPROVEMENTS_SUMMARY" '
+              [.comments // []
+              | sort_by((.date | tonumber?) // 0)
               | reverse
-              | .[0]
-              | if . == null then empty
-                else [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))]
-                  | join("")
-                end
-            ' 2>/dev/null || true)
-            if [ -z "$latest" ]; then
-              return 1
-            fi
-            if printf '%s' "$latest" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
+              | .[0:10][]
+              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("")
+              | select(
+                  (index($summary) != null)
+                  or (test("No improvements needed"; "i"))
+                )
+              ] | length > 0
+            ' >/dev/null 2>&1; then
               return 0
             fi
-            printf '%s' "$latest" | grep -qi 'No improvements needed'
+            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
+              return 0
+            fi
+            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qi 'No improvements needed'; then
+              return 0
+            fi
+            return 1
           }
 
           refresh_task_comments() {
@@ -771,8 +774,8 @@ jobs:
                 echo "Skipping ClickUp duplicate: no-improvements ref token found in parsed comment bodies (PR #${PR_NUM})."
                 exit 0
               fi
-              if latest_task_comment_is_no_improvements; then
-                echo "Skipping ClickUp duplicate: latest task comment is already the no-improvements summary."
+              if task_has_no_improvements_comment; then
+                echo "Skipping ClickUp duplicate: task already has a no-improvements summary comment."
                 exit 0
               fi
             fi
@@ -787,16 +790,11 @@ jobs:
           fi
 
           if [ "${POST_KIND:-}" = "no_improvements" ]; then
-            for poll in 1 2 3; do
-              if latest_task_comment_is_no_improvements; then
-                echo "Skipping ClickUp duplicate: latest task comment is already the no-improvements summary (pre-post check ${poll}/3)."
-                exit 0
-              fi
-              if [ "$poll" -lt 3 ]; then
-                sleep 4
-                refresh_task_comments
-              fi
-            done
+            refresh_task_comments
+            if task_has_no_improvements_comment; then
+              echo "Skipping ClickUp duplicate: task already has a no-improvements summary comment (pre-post check)."
+              exit 0
+            fi
           fi
 
           # New task comment each run for issue payloads; deduped per HEAD SHA above.
