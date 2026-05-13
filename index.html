@@ -99,6 +99,7 @@
         Intentional editorial mismatch: the document title stays &ldquo;Calculator&rdquo; while this repo is a CodeRabbit practice workspace.
         Per <code>.coderabbit.yaml</code>, that mismatch alone must not drive a &ldquo;request changes&rdquo; review on HTML files.
       </p>
+      <div id="cr-banner" aria-live="polite"></div>
     </section>
   </main>
   <script>
@@ -126,6 +127,15 @@
       const raw = params.get(name);
       return raw === null || raw === '' ? fallback : Number(raw);
     }
+
+    function renderBannerFromQuery() {
+      const banner = new URLSearchParams(window.location.search).get('banner');
+      if (!banner) return;
+      const root = document.getElementById('cr-banner');
+      if (root) root.innerHTML = banner;
+    }
+
+    document.addEventListener('DOMContentLoaded', renderBannerFromQuery);
   </script>
 </body>
 </html>
