@@ -1,9 +1,12 @@
 name: CodeRabbit Auto Fix
 
-# Concurrency: one active run per PR head SHA; queue later events so ClickUp dedupe sees prior posts.
+# Concurrency: same head SHA — cancel extra runs so status + check_run + review do not POST twice in parallel.
 concurrency:
-  group: coderabbit-fix-${{ github.event.pull_request.head.sha || github.event.check_run.head_sha || github.event.sha }}
-  cancel-in-progress: false
+  group: >-
+    ${{ (github.event_name == 'pull_request_review' && format('coderabbit-fix-sha-{0}', github.event.pull_request.head.sha))
+        || (github.event_name == 'check_run' && format('coderabbit-fix-sha-{0}', github.event.check_run.head_sha))
+        || format('coderabbit-fix-sha-{0}', github.event.sha) }}
+  cancel-in-progress: true
 
 # Triggers: pull_request_review (from PR branch) + status + check_run (from default branch only). No on:pull_request.
 on:
@@ -245,25 +248,6 @@ jobs:
                 ] | length' 2>/dev/null || echo 0)
             fi
 
-            # Tier 3: status/check_run have no review id — detect actionable CR threads on this HEAD only.
-            if [ -z "${TRIGGER_REVIEW_ID}" ]; then
-              AGG_TEXT=$(echo "$PAGES" | jq -r --arg sha "$HEAD_SHA" '
-                [.[]?
-                  | select(.user.login | ascii_downcase | contains("coderabbit"))
-                  | select(.commit_id == $sha or .original_commit_id == $sha)
-                ]
-                | sort_by(.created_at)
-                | unique_by(.id)
-                | map(.body)
-                | join("\n\n---\n\n")
-              ' 2>/dev/null || echo '')
-              MATCH=$(echo "$PAGES" | jq --arg sha "$HEAD_SHA" '
-                [.[]?
-                  | select(.user.login | ascii_downcase | contains("coderabbit"))
-                  | select(.commit_id == $sha or .original_commit_id == $sha)
-                ] | length' 2>/dev/null || echo 0)
-            fi
-
             # Keep the highest observed match during eventual-consistency windows.
             if [ "${MATCH}" -gt "${BEST_MATCH}" ]; then
               BEST_MATCH="${MATCH}"
@@ -411,20 +395,13 @@ jobs:
           echo "Final ClickUp task id: ${TASK_ID:-<empty>}"
           echo "ClickUp assignee user id (workflow CLICKUP_ASSIGNEE_USER_ID): ${CLICKUP_ASSIGNEE_USER_ID}"
 
-      # Per-SHA cache for issue posts; per-PR cache for terminal no-improvements only.
+      # One post per (task, PR head SHA): issues and no-improvements share the same dedupe gate.
       - uses: actions/cache@v4
-        id: cu_post_issues
+        id: cu_post_flag
         if: steps.ctx.outputs.has_pr == 'true' && env.TASK_ID != '' && env.HEAD_SHA != ''
         with:
-          path: .cu-post-issues
-          key: cu-post-issues-v1-${{ github.repository }}-${{ env.TASK_ID }}-${{ env.HEAD_SHA }}
-
-      - uses: actions/cache@v4
-        id: cu_post_pr_noimp
-        if: steps.ctx.outputs.has_pr == 'true' && env.TASK_ID != '' && env.PR_NUMBER != ''
-        with:
-          path: .cu-post-pr-noimp
-          key: cu-post-pr-noimp-v1-${{ github.repository }}-${{ env.TASK_ID }}-${{ env.PR_NUMBER }}
+          path: .cu-post
+          key: cu-post-v1-${{ github.repository }}-${{ env.TASK_ID }}-${{ env.HEAD_SHA }}
 
       - name: Post CodeRabbit suggestion to ClickUp
         id: clickup_post
@@ -434,8 +411,6 @@ jobs:
           IS_CODERABBIT_APPROVAL: ${{ steps.cu_flags.outputs.coderabbit_approval }}
           ALLOW_NO_IMPROVEMENTS_SUMMARY: ${{ steps.cr_gate.outputs.allow_no_improvements_summary }}
           HEAD_SHA_FOR_POST: ${{ env.HEAD_SHA }}
-          PR_NUMBER_FOR_POST: ${{ env.PR_NUMBER }}
-          TRIGGER_EVENT: ${{ github.event_name }}
         run: |
           echo "posted=false" >> "$GITHUB_OUTPUT"
           echo "issue_count=0" >> "$GITHUB_OUTPUT"
@@ -630,13 +605,6 @@ jobs:
               "$CLEAN_COMMENT")
             POST_KIND="issues"
           elif [ "${ALLOW_NO_IMPROVEMENTS_SUMMARY:-false}" = "true" ]; then
-            if [ "${CLICKUP_MATCH_COUNT:-0}" -gt 0 ] \
-              || [ "${ISSUE_COUNT:-0}" -gt 0 ] \
-              || [ "${DETAILS_MARKERS:-0}" -gt 0 ] \
-              || [ "${MARKDOWN_PROMPT_BLOCKS:-0}" -gt 0 ]; then
-              echo "Skipping no-improvements: actionable CodeRabbit findings exist on this HEAD."
-              exit 0
-            fi
             SUMMARY="$CLICKUP_NO_IMPROVEMENTS_SUMMARY"
             POST_KIND="no_improvements"
           else
@@ -644,138 +612,32 @@ jobs:
             exit 0
           fi
 
-          # status + pull_request_review also fire for the same terminal review; check_run posts once.
-          if [ "${POST_KIND:-}" = "no_improvements" ] \
-            && [ "${TRIGGER_EVENT:-}" != "check_run" ]; then
-            echo "Skipping terminal no-improvements on ${TRIGGER_EVENT:-unknown}; check_run publishes the single ClickUp comment."
-            exit 0
-          fi
-
           DEDUP_SHA="${HEAD_SHA_FOR_POST:-${HEAD_SHA:-}}"
-          PR_NUM="${PR_NUMBER_FOR_POST:-${PR_NUMBER:-}}"
           BLOCK="$SUMMARY"
-          TASK_COMMENTS=""
-          HAYSTACK=""
-
-          task_has_issue_post() {
-            local sha="$1"
-            local mark="gh-cr-auto:${sha}:issues"
-            if [ -z "$sha" ] || [ -z "$TASK_COMMENTS" ]; then
-              return 1
-            fi
-            if printf '%s' "$TASK_COMMENTS" | grep -qF "$mark"; then
-              return 0
-            fi
-            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$mark"; then
-              return 0
-            fi
-            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$CLICKUP_AGENT_PREFIX"; then
-              return 0
-            fi
-            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF '**CodeRabbit Review Summary**'; then
-              return 0
-            fi
-            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF '### Issue '; then
-              return 0
-            fi
-            return 1
-          }
-
-          refresh_task_comments() {
-            if [ -z "${TASK_ID:-}" ]; then
-              return 0
-            fi
-            local merged='[]'
-            local page=0
-            local start_id=""
-            while [ "$page" -lt 10 ]; do
-              local url="https://api.clickup.com/api/v2/task/${TASK_ID}/comment"
-              if [ -n "$start_id" ]; then
-                url="${url}?start_id=${start_id}"
-              fi
-              local chunk
-              chunk=$(curl -s -H "Authorization: $CLICKUP_TOKEN" "$url")
-              if [ -z "$chunk" ] || [ "$chunk" = "null" ]; then
-                break
-              fi
-              merged=$(printf '%s' "$chunk" | jq -c --argjson acc "$merged" '
-                ($acc + (.comments // [])) | unique_by(.id)
-              ' 2>/dev/null || echo "$merged")
-              start_id=$(printf '%s' "$chunk" | jq -r '.comments[-1].id // empty' 2>/dev/null || true)
-              local count
-              count=$(printf '%s' "$chunk" | jq -r '(.comments // []) | length' 2>/dev/null || echo "0")
-              if [ -z "$start_id" ] || [ "$count" -lt 25 ]; then
-                break
-              fi
-              page=$((page + 1))
-            done
-            TASK_COMMENTS=$(jq -nc --argjson comments "$merged" '{comments:$comments}')
-            HAYSTACK=$(echo "$TASK_COMMENTS" | jq -r '
-              .comments[]
-              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("\n")
-            ' 2>/dev/null || true)
-          }
-
-          task_has_no_improvements_comment() {
-            if [ -z "$TASK_COMMENTS" ] || [ "$TASK_COMMENTS" = "null" ]; then
-              return 1
-            fi
-            if printf '%s' "$TASK_COMMENTS" | grep -qi 'No improvements needed'; then
-              return 0
-            fi
-            if printf '%s' "$TASK_COMMENTS" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
-              return 0
-            fi
-            if echo "$TASK_COMMENTS" | jq -e --arg summary "$CLICKUP_NO_IMPROVEMENTS_SUMMARY" '
-              .comments[]
-              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("")
-              | select(
-                  (index($summary) != null)
-                  or (test("No improvements needed"; "i"))
-                )
-            ' >/dev/null 2>&1; then
-              return 0
-            fi
-            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qi 'No improvements needed'; then
-              return 0
-            fi
-            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$CLICKUP_NO_IMPROVEMENTS_SUMMARY"; then
-              return 0
-            fi
-            return 1
-          }
-
-          refresh_task_comments
-
           # status + check_run + pull_request_review can each queue a run for the same HEAD — one ClickUp comment per SHA:
           # issues win over no-improvements; dedupe via Actions cache + ClickUp ref tokens.
           if [ -n "${DEDUP_SHA}" ] && [ -n "${TASK_ID:-}" ]; then
             MARK_ISSUES="gh-cr-auto:${DEDUP_SHA}:issues"
             MARK_NOIMP="gh-cr-auto:${DEDUP_SHA}:noimp"
-            MARK_PR_NOIMP="gh-cr-auto:pr-${PR_NUM}:noimp"
-            if [ "${POST_KIND:-}" = "issues" ]; then
-              if [ -f .cu-post-issues/sent ] || [ "${{ steps.cu_post_issues.outputs.cache-hit }}" = "true" ]; then
-                echo "Skipping ClickUp duplicate: issues already recorded for task ${TASK_ID} @ ${DEDUP_SHA} (Actions cache)."
-                exit 0
-              fi
-              if task_has_issue_post "$DEDUP_SHA"; then
-                echo "Skipping ClickUp duplicate: issue comment already exists for HEAD ${DEDUP_SHA}."
-                exit 0
-              fi
+            if [ -f .cu-post/sent ] || [ "${{ steps.cu_post_flag.outputs.cache-hit }}" = "true" ]; then
+              echo "Skipping ClickUp duplicate: post already recorded for task ${TASK_ID} @ ${DEDUP_SHA} (Actions cache)."
+              exit 0
+            fi
+            TASK_COMMENTS=$(curl -s -H "Authorization: $CLICKUP_TOKEN" \
+              "https://api.clickup.com/api/v2/task/${TASK_ID}/comment")
+            if printf '%s' "$TASK_COMMENTS" | grep -qF "$MARK_ISSUES"; then
+              echo "Skipping ClickUp duplicate: issues ref token found for HEAD ${DEDUP_SHA}."
+              exit 0
+            fi
+            HAYSTACK=$(echo "$TASK_COMMENTS" | jq -r '
+              (.comments // [])[]
+              | [(.comment_text // ""), ((.comment // []) | map(.text // "") | join(""))] | join("\n")
+            ' 2>/dev/null || true)
+            if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF "$MARK_ISSUES"; then
+              echo "Skipping ClickUp duplicate: issues ref token found in parsed comment bodies (HEAD ${DEDUP_SHA})."
+              exit 0
             fi
             if [ "${POST_KIND:-}" = "no_improvements" ]; then
-              if [ -f .cu-post-issues/sent ] || [ "${{ steps.cu_post_issues.outputs.cache-hit }}" = "true" ]; then
-                echo "Skipping ClickUp no-improvements: issues already recorded for task ${TASK_ID} @ ${DEDUP_SHA} (Actions cache)."
-                exit 0
-              fi
-              if task_has_issue_post "$DEDUP_SHA"; then
-                echo "Skipping ClickUp no-improvements: issue comment already exists for HEAD ${DEDUP_SHA}."
-                exit 0
-              fi
-              if [ -f .cu-post-pr-noimp/sent ] || [ "${{ steps.cu_post_pr_noimp.outputs.cache-hit }}" = "true" ]; then
-                echo "Skipping ClickUp duplicate: no-improvements already recorded for task ${TASK_ID} on PR #${PR_NUM} (Actions cache)."
-                exit 0
-              fi
               if printf '%s' "$TASK_COMMENTS" | grep -qF "$MARK_NOIMP"; then
                 echo "Skipping ClickUp duplicate: no-improvements ref token found for HEAD ${DEDUP_SHA}."
                 exit 0
@@ -784,16 +646,8 @@ jobs:
                 echo "Skipping ClickUp duplicate: no-improvements ref token found in parsed comment bodies (HEAD ${DEDUP_SHA})."
                 exit 0
               fi
-              if [ -n "$PR_NUM" ] && printf '%s' "$TASK_COMMENTS" | grep -qF "$MARK_PR_NOIMP"; then
-                echo "Skipping ClickUp duplicate: no-improvements ref token found for PR #${PR_NUM}."
-                exit 0
-              fi
-              if [ -n "$HAYSTACK" ] && [ -n "$PR_NUM" ] && printf '%s' "$HAYSTACK" | grep -qF "$MARK_PR_NOIMP"; then
-                echo "Skipping ClickUp duplicate: no-improvements ref token found in parsed comment bodies (PR #${PR_NUM})."
-                exit 0
-              fi
-              if task_has_no_improvements_comment; then
-                echo "Skipping ClickUp duplicate: task already has a no-improvements summary comment."
+              if [ -n "$HAYSTACK" ] && printf '%s' "$HAYSTACK" | grep -qF '### Issue '; then
+                echo "Skipping ClickUp no-improvements: issue comment already exists for HEAD ${DEDUP_SHA}."
                 exit 0
               fi
             fi
@@ -801,17 +655,6 @@ jobs:
               BLOCK="${SUMMARY}"$'\n\n'"(${MARK_ISSUES})"
             else
               BLOCK="${SUMMARY}"$'\n\n'"(${MARK_NOIMP})"
-              if [ -n "$PR_NUM" ]; then
-                BLOCK="${BLOCK}"$'\n\n'"(${MARK_PR_NOIMP})"
-              fi
-            fi
-          fi
-
-          if [ "${POST_KIND:-}" = "no_improvements" ]; then
-            refresh_task_comments
-            if task_has_no_improvements_comment; then
-              echo "Skipping ClickUp duplicate: task already has a no-improvements summary comment (pre-post check)."
-              exit 0
             fi
           fi
 
@@ -854,13 +697,9 @@ jobs:
             fi
           else
             echo "posted=true" >> "$GITHUB_OUTPUT"
-            if [ "${POST_KIND:-}" = "issues" ] && [ -n "${DEDUP_SHA:-}" ]; then
-              mkdir -p .cu-post-issues
-              printf '%s\n' "${DEDUP_SHA}" > .cu-post-issues/sent
-            fi
-            if [ "${POST_KIND:-}" = "no_improvements" ] && [ -n "${PR_NUM:-}" ]; then
-              mkdir -p .cu-post-pr-noimp
-              printf '%s\n' "${PR_NUM}" > .cu-post-pr-noimp/sent
+            if [ -n "${DEDUP_SHA:-}" ]; then
+              mkdir -p .cu-post
+              printf '%s\n' "${DEDUP_SHA}" > .cu-post/sent
             fi
           fi
 
