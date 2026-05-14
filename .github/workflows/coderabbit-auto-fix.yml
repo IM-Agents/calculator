@@ -43,14 +43,6 @@ jobs:
         && github.event.state == 'success'
         && (contains(github.event.description, 'Review completed')
           || contains(github.event.description, 'Review skipped')))
-      || (github.event_name == 'check_run'
-        && github.event.action == 'completed'
-        && github.event.check_run.app != null
-        && (github.event.check_run.app.slug == 'coderabbitai'
-          || github.event.check_run.app.slug == 'coderabbit')
-        && (github.event.check_run.conclusion == 'success'
-          || github.event.check_run.conclusion == 'skipped'
-          || github.event.check_run.conclusion == 'neutral'))
 
     permissions:
       contents: read
