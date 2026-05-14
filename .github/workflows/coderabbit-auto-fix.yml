@@ -36,9 +36,7 @@ jobs:
       CLICKUP_NO_IMPROVEMENTS_SUMMARY: 'Role: No improvements needed. Now the Run project'
 
     if: >-
-      (github.event_name == 'pull_request_review'
-        && contains(github.event.review.user.login, 'coderabbit'))
-      || (github.event_name == 'status'
+      (github.event_name == 'status'
         && github.event.context == 'CodeRabbit'
         && github.event.state == 'success'
         && (contains(github.event.description, 'Review completed')
