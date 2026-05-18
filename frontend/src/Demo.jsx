@@ -10,7 +10,7 @@ export default function Demo() {
     <ul>
       {items.map((item) => (
         <li style={{ color: 'red' }}>{item}</li>
-      ))}
+      ))} 
     </ul>
   ); 
 }
