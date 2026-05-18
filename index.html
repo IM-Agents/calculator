@@ -1,64 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculator</title>
-    <style>
-        :root {
-            font-family: system-ui, sans-serif;
-        }
-        main {
-            max-width: 22rem;
-            margin: 2rem auto;
-            padding: 0 1rem;
-        }
-        h1 {
-            font-size: 1.25rem;
-            margin-bottom: 0.5rem;
-        }
-        .calculator {
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 0.75rem;
-            background: #f8f8f8;
-        }
-        .display {
-            font-size: 1.5rem;
-            text-align: right;
-            padding: 0.5rem 0.75rem;
-            margin-bottom: 0.75rem;
-            background: #fff;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            min-height: 2.25rem;
-            word-break: break-all;
-        }
-        .buttons {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0.35rem;
-        }
-        .buttons button {
-            padding: 0.65rem;
-            font-size: 1rem;
-            cursor: pointer;
-            border: 1px solid #bbb;
-            border-radius: 4px;
-            background: #fff;
-        }
-        .buttons button:hover {
-            background: #eee;
-        }
-        .buttons button.span-2 {
-            grid-column: span 2;
-        }
-        .meta {
-            margin-top: 0.75rem;
-            font-size: 0.85rem;
-            color: #555;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculator</title>
 </head>
 <body>
   <main>
@@ -72,34 +17,6 @@
         <li>Read CodeRabbit&rsquo;s <strong>summary</strong> and any <strong>inline</strong> threads for your head commit.</li>
         <li>Treat green or &ldquo;no actionable comments&rdquo; as <strong>not</strong> a substitute for your own merge decision.</li>
       </ol>
-      <details>
-        <summary>What applies to <code>index.html</code> (this file)</summary>
-        <ul>
-          <li>
-            <strong>OMA pre_merge_checks</strong> in <code>.coderabbit.yaml</code> only classify files under
-            <code>frontend/src/</code>, <code>backend/src/</code>, and <code>desktop/src/</code>.
-            Root <code>index.html</code> is called out as ignored for that gate unless it embeds secrets.
-          </li>
-          <li>
-            <strong>HTML path instructions</strong> (<code>**/*.{html,htm}</code>): request changes for invalid HTML,
-            broken parsing or accessibility on changed lines, or XSS-style patterns — not for
-            <code>&lt;title&gt;</code> vs visible copy mismatch, placeholder copy, or &ldquo;repo name vs page name.&rdquo;
-          </li>
-          <li>
-            Stricter rules (no ad-hoc <code>console.log</code>, React <code>key</code>s, no inline <code>style={{ }}</code>, etc.)
-            apply to <code>frontend/src/**</code> only, not to this standalone static page.
-          </li>
-          <li>
-            <code>.github/workflows/*.yml</code> and <code>.coderabbit.yaml</code> are excluded from review via
-            <code>path_filters</code> (<code>!**/*.yml</code>, <code>!**/*.yaml</code>) — workflow and config edits are not in that diff scope.
-          </li>
-        </ul>
-      </details>
-      <p class="meta">
-        Intentional editorial mismatch: the document title stays &ldquo;Calculator&rdquo; while this repo is a CodeRabbit practice workspace.
-        Per <code>.coderabbit.yaml</code>, that mismatch alone must not drive a &ldquo;request changes&rdquo; review on HTML files.
-      </p>
-      <div id="cr-status" aria-live="polite"></div>
     </section>
   </main>
   <script>
@@ -108,40 +25,184 @@
       return a + b;
     }
 
+    /** Reads a numeric query param for demos; returns fallback if missing, blank, or non-finite. */
+    function readDemoNumber(name, fallback) {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get(name);
+      if (raw === null || raw.trim() === '') return fallback;
+      const parsed = Number.parseFloat(raw);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    } 
+
     /**
      * CodeRabbit reviews this file on GitHub; findings sync to ClickUp via
      * `.github/workflows/coderabbit-auto-fix.yml` (server-side token). Do not call ClickUp from the browser.
      */
-    function divide(a, b) {
-      if (b === 0) return Number.NaN;
-      return a / b;
-    }
 
-    function multiply(a, b) {
-      return a * b;
-    }
+        function updateDisplay() {
+            const el = getDisplayEl();
+            const text = expression.trim() === '' ? '0' : expression;
+            el.textContent = text;
+        } 
 
-    /** Reads a numeric query param; prefer Number.parseFloat + Number.isFinite for strict validation. */
-    function readDemoNumber(name, fallback) {
-      const params = new URLSearchParams(window.location.search);
-      const raw = params.get(name);
-      return raw === null || raw === '' ? fallback : Number(raw);
-    }
+        function tokenize(str) {
+            const tokens = [];
+            let i = 0;
+            const s = str.replace(/\s+/g, '');
+            while (i < s.length) {
+                const c = s[i];
+                if (c >= '0' && c <= '9' || c === '.') {
+                    let num = '';
+                    while (i < s.length && (s[i] >= '0' && s[i] <= '9' || s[i] === '.')) {
+                        num += s[i++];
+                    }
+                    if (num === '.' || num.split('.').length > 2) throw new Error('Invalid number');
+                    tokens.push({ type: 'num', value: Number(num) });
+                    if (Number.isNaN(tokens[tokens.length - 1].value)) throw new Error('Invalid number');
+                    continue;
+                }
+                if ('+-*/'.includes(c)) {
+                    tokens.push({ type: 'op', value: c });
+                    i++;
+                    continue;
+                }
+                if (c === '(') {
+                    tokens.push({ type: 'lp' });
+                    i++;
+                    continue;
+                }
+                if (c === ')') {
+                    tokens.push({ type: 'rp' });
+                    i++;
+                    continue;
+                }
+                throw new Error('Invalid character');
+            }
+            return tokens;
+        }
 
-    function renderStatusFromQuery() {
-      const status = new URLSearchParams(window.location.search).get('status');
-      if (!status) return;
-      const root = document.getElementById('cr-status');
-      if (root) root.textContent = status;
-    }
-    function renderStatusFromQuery() {
-      const status = new URLSearchParams(window.location.search).get('status');
-      if (!status) return;
-      const root = document.getElementById('cr-status');
-      if (root) root.textContent = status;
-    } 
+        /**
+         * Divides a by b. Callers must catch: divide throws on non-finite operands, division by zero.
+         * @param {number} a dividend
+         * @param {number} b divisor
+         * @returns {number}
+         * @throws {Error} When a or b is not a finite number, or b is 0
+         */
+        function divide(a, b) {
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                throw new Error('Operands must be finite numbers');
+            }
+            if (b === 0) {
+                throw new Error('Division by zero');
+            }
+            return a / b;
+        }
 
-    document.addEventListener('DOMContentLoaded', renderStatusFromQuery);
-  </script>
+        /**
+         * Evaluates a numeric expression (+ − × /, parentheses, decimals) without eval/Function.
+         * @param {string} expr
+         * @returns {number|string}
+         */
+        function calculate(expr) {
+            const trimmed = expr.trim();
+            if (trimmed === '') return '0';
+            let tokens;
+            try {
+                tokens = tokenize(trimmed);
+            } catch {
+                return 'Error';
+            }
+            if (tokens.length === 0) return '0';
+            let pos = 0;
+            function peek() {
+                return tokens[pos];
+            }
+            function consume() {
+                return tokens[pos++];
+            }
+            function parseFactor() {
+                const t = peek();
+                if (!t) throw new Error('Incomplete');
+                if (t.type === 'num') {
+                    consume();
+                    return t.value;
+                }
+                if (t.type === 'lp') {
+                    consume();
+                    const inner = parseExpression();
+                    const close = consume();
+                    if (!close || close.type !== 'rp') throw new Error('Expected )');
+                    return inner;
+                }
+                throw new Error('Expected value');
+            }
+            function parseTerm() {
+                let left = parseFactor();
+                while (peek() && peek().type === 'op' && (peek().value === '*' || peek().value === '/')) {
+                    const op = consume().value;
+                    const right = parseFactor();
+                    left = op === '*' ? left * right : divide(left, right);
+                }
+                return left;
+            }
+            function parseExpression() {
+                let left = parseTerm();
+                while (peek() && peek().type === 'op' && (peek().value === '+' || peek().value === '-')) {
+                    const op = consume().value;
+                    const right = parseTerm();
+                    left = op === '+' ? left + right : left - right;
+                }
+                return left;
+            }
+            try {
+                const result = parseExpression();
+                if (pos !== tokens.length) throw new Error('Trailing input');
+                if (typeof result !== 'number' || !Number.isFinite(result)) return 'Error';
+                return result;
+            } catch {
+                return 'Error';
+            }
+        }
+
+        function handleButtonClick(event) {
+            const btn = event.target.closest('button');
+            if (!btn || !document.getElementById('buttons').contains(btn)) return;
+
+            const action = btn.dataset.action;
+            const value = btn.dataset.value;
+
+            if (getDisplayEl().textContent === 'Error' && action !== 'clear' && action !== 'backspace') {
+                expression = '';
+            }
+
+            if (action === 'clear') {
+                expression = '';
+                updateDisplay();
+                return;
+            }
+            if (action === 'backspace') {
+                expression = expression.slice(0, -1);
+                updateDisplay();
+                return;
+            }
+            if (action === 'equals') {
+                const out = calculate(expression);
+                expression = out === 'Error' ? '' : String(out);
+                getDisplayEl().textContent = out === 'Error' ? 'Error' : expression;
+                if (out === 'Error') expression = '';
+                return;
+            }
+            if (value !== undefined) {
+                expression += value;
+                updateDisplay();
+            }
+        }
+
+        document.getElementById('buttons').addEventListener('click', handleButtonClick);
+        updateDisplay();
+
+        window.calculate = calculate;
+        window.handleButtonClick = handleButtonClick;
+    </script>
 </body>
 </html>
