@@ -1,65 +1,21 @@
-# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # https://docs.coderabbit.ai/guides/configuration-overview
 # OMA monorepo: frontend (React/Vite), backend (Express/MySQL/Shopify/Socket.IO), desktop (Electron)
 language: en-US
 
-# Extra guideline globs (defaults still apply): https://docs.coderabbit.ai/knowledge-base/code-guidelines#adding-custom-file-patterns
-knowledge_base:
-  code_guidelines:
-    enabled: true
-    filePatterns:
-      # Default **/.cursor/rules/* matches one segment; this repo uses .cursor/rules/<topic>/RULE.md
-      # Note: reviews.path_filters exclude `!.cursor/**`, so these files are not in the PR diff scope;
-      # they still document team standards if CodeRabbit ever reviews under .cursor/ or you drop that filter.
-      - "**/.cursor/rules/**/*.md"
-
 reviews:
-  auto_review:
-    enabled: true
-    auto_pause_after_reviewed_commits: 0
-  # assertive surfaces more product/consistency nits (e.g. <title> vs visible copy). chill + instructions below
-  # keeps feedback closer to bugs, security, and correctness in the actual diff.
-  profile: chill
+  profile: assertive
   request_changes_workflow: true
   review_details: true
-  instructions: |
-    Scope the review to the changed code only.
-
-    DO request changes or inline comments for:
-    - Definite bugs, broken logic, incorrect control flow, or unsafe patterns in the diff
-    - Security issues (injection, XSS, secrets, unsafe eval, etc.) when supported by the code
-    - Syntax/type errors, invalid HTML/CSS/JS, or APIs used incorrectly in changed lines
-    - Clear regressions or violations of explicit project rules in this repo’s path_instructions / pre_merge_checks
-
-    DO NOT request changes solely for:
-    - Mismatch between page <title>, headings, or metadata and the visible body copy (treat as editorial / out of scope)
-    - “The repo or PR title suggests feature X but this file only does Y” — unless the diff introduces an internal contradiction that breaks runtime behavior
-    - Asking to implement new features, full UIs, or large refactors that are not required to fix a defect in the changed code
-    - Subjective product direction, marketing wording, or “nice to have” completeness
-
-    Prefer silence over speculative feature work. If the diff is valid scaffold or placeholder content with no defect, approve or leave no blocking comments.
   path_filters:
-    - "!node_modules/**"
-    - "!**/dist/**"
-    - "!**/coverage/**"
     - "!docs/**"
+    - "!node_modules/**"
     - "!.cursor/**"
     - "!AGENTS.md"
     - "!**/*.md"
     - "!**/*.yml"
-    - "!**/*.yaml"
 
   path_instructions:
-    - path: "**/*.{html,htm}"
-      instructions: |
-        Static HTML in this repo may be demos, placeholders, or early scaffold. For these files only:
-
-        - Flag invalid HTML structure, broken tags, or attributes that break parsing or accessibility in the changed lines.
-        - Flag XSS or security-sensitive patterns when present in the diff.
-        - Do NOT request changes because <title> or copy does not match the body, or because the page does not yet implement a name from the repo title.
-        - Treat “no newline at end of file” and similar formatting-only nits as non-blocking (comment at most if the team already enforces it elsewhere).
-
-    - path: "frontend/src/**/*.{js,jsx,ts,tsx}"
+    - path: "frontend/src/**/*.{js,jsx}"
       instructions: |
         This path is the React 18 + Vite UI for Order Management Automation (OMA). Treat these as strict blocking rules for changed lines:
 
@@ -74,7 +30,7 @@ reviews:
 
         If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
 
-    - path: "backend/src/**/*.{js,mjs,cjs,ts}"
+    - path: "backend/src/**/*.js"
       instructions: |
         This path is the Node.js + Express API, MySQL access, Shopify webhooks, PDF/print services, and Socket.IO server for OMA. Blocking rules for changed lines:
 
@@ -88,7 +44,7 @@ reviews:
 
         If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
 
-    - path: "desktop/src/**/*.{js,mjs,cjs,ts}"
+    - path: "desktop/src/**/*.js"
       instructions: |
         This path is the Electron main process, preload, and renderer for the local print client. Blocking rules for changed lines:
 
@@ -107,7 +63,7 @@ reviews:
         instructions: |
           Pass/fail only from the PR diff and files touched in this PR.
 
-          Scope: classify each touched file under `frontend/src/`, `backend/src/`, or `desktop/src/` and apply the matching rules below. Ignore unrelated paths (e.g. root `index.html`, docs-only, or config-only PRs) unless they embed secrets.
+          Scope: classify each touched file under `frontend/src/`, `backend/src/`, or `desktop/src/` and apply the matching rules below. Ignore unrelated paths (e.g. docs only) unless they embed secrets.
 
           **frontend/src (React / Vite)** — FAIL if changed code introduces or leaves:
           1) Ad-hoc `console.log` / `console.debug` / `console.info` as permanent logging (excluding clearly marked temporary dev scaffolding).

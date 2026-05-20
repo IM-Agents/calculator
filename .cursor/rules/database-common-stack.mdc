@@ -1,0 +1,44 @@
+---
+description: Shared relational database standards across MySQL and PostgreSQL
+globs: **/db/**/*.sql, **/database/**/*.sql, **/migrations/**/*.sql, **/db/**/*.js, **/database/**/*.js, **/migrations/**/*.js, **/db/**/*.ddl, **/database/**/*.ddl, **/migrations/**/*.ddl
+alwaysApply: false
+---
+
+# Relational Database Common Standards
+
+## Universal relational rules
+
+- **MUST** start with normalized schema (target 3NF for OLTP).
+- **MUST** use parameterized queries only; no string-interpolated SQL.
+- **MUST** keep naming consistent (`snake_case`, clear PK/FK/audit fields).
+- **MUST** enforce least-privilege DB access and separation of migration/runtime roles.
+
+## Performance and reliability rules
+
+- **MUST** inspect plans for hot queries (`EXPLAIN` variants per engine).
+- **MUST** keep queries bounded with safe limits/cursors.
+- **SHOULD** prefer keyset pagination for large datasets.
+- **SHOULD** optimize by p95/p99 impact first, not anecdotal slow paths.
+
+## Data safety rules
+
+- **MUST** define backup, restore, and PITR expectations by RPO/RTO.
+- **MUST** protect PII in storage, access, and non-prod snapshots.
+- **MUST NOT** deploy schema changes without rollback/mitigation plan.
+
+## Review checklist
+
+- [ ] SQL is parameterized and bounded
+- [ ] Index/plan checks done for changed queries
+- [ ] Security and least-privilege constraints preserved
+- [ ] Migration and recovery implications documented
+
+## Example
+
+```sql
+SELECT id, created_at
+FROM orders
+WHERE (created_at, id) < (?, ?)
+ORDER BY created_at DESC, id DESC
+LIMIT 50;
+```

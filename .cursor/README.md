@@ -6,7 +6,7 @@ This directory mixes **your configuration** with **Cursor application data**. Ed
 
 | Path | Purpose |
 |------|---------|
-| **`rules/`** | Cursor **rules** (`rules/<name>/RULE.md`). See `rules/README.md` for the index. |
+| **`rules/`** | Cursor **rules** (`rules/*.mdc`). Key monorepo rules: `architecture.mdc`, `env-variables.mdc`, `turbo-env-cache.mdc`. |
 | **`skills/`** | Your **Agent Skills** (`skills/<name>/SKILL.md`). |
 | **`skills-cursor/`** | Cursor **template / bundled skill** copies; edit if you use them as source of truth. |
 | **`AGENTS.md`** | High-level agent charter and links to `agent/` docs. |
