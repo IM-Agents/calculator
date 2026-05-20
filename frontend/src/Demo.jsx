@@ -9,6 +9,7 @@ export default function Demo() {
   return (
     <ul>
       {items.map((item) => (
+        console.log("get new chnage");
         <li style={{ color: 'red' }}>{item}</li>
       ))} 
     </ul>
