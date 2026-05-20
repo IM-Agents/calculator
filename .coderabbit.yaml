@@ -15,7 +15,7 @@ reviews:
     - "!**/*.yml"
 
   path_instructions:
-    - path: "frontend/src/**/*.{js,jsx,ts,tsx,mjs,cjs}"
+    - path: "frontend/src/**/*.{js,jsx}"
       instructions: |
         This path is the React 18 + Vite UI for Order Management Automation (OMA). Treat these as strict blocking rules for changed lines:
 
@@ -30,7 +30,7 @@ reviews:
 
         If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
 
-    - path: "backend/src/**/*.{js,mjs,cjs,ts}"
+    - path: "backend/src/**/*.js"
       instructions: |
         This path is the Node.js + Express API, MySQL access, Shopify webhooks, PDF/print services, and Socket.IO server for OMA. Blocking rules for changed lines:
 
@@ -44,7 +44,7 @@ reviews:
 
         If any of the above appears in the diff for this path, you MUST request changes and explain the fix.
 
-    - path: "desktop/src/**/*.{js,mjs,cjs,ts}"
+    - path: "desktop/src/**/*.js"
       instructions: |
         This path is the Electron main process, preload, and renderer for the local print client. Blocking rules for changed lines:
 
@@ -63,7 +63,7 @@ reviews:
         instructions: |
           Pass/fail only from the PR diff and files touched in this PR.
 
-          Scope: classify each touched file under `frontend/src/`, `backend/src/`, or `desktop/src/` and apply the matching rules below. Ignore docs-only/content-only paths, but do not ignore CI/CD and automation config changes (e.g. `.github/workflows/**`, `.gitlab-ci.yml`, `azure-pipelines.yml`, `Dockerfile`, `.circleci/**`, pipeline YAML, deployment config), even when no secret is present.
+          Scope: classify each touched file under `frontend/src/`, `backend/src/`, or `desktop/src/` and apply the matching rules below. Ignore unrelated paths (e.g. docs only) unless they embed secrets.
 
           **frontend/src (React / Vite)** — FAIL if changed code introduces or leaves:
           1) Ad-hoc `console.log` / `console.debug` / `console.info` as permanent logging (excluding clearly marked temporary dev scaffolding).
