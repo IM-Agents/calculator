@@ -47,11 +47,11 @@ Always follow this flow when generating functional test cases. Use skill `.curso
 my-project/
 ├── apps/
 ├── packages/
-└── test/                              ← REQUIRED root folder
-    ├── README.md                      ← REQUIRED index
-    ├── [page-name].md                 ← one file per page (name from real page/route)
-    ├── [another-page-name].md
-    └── ...
+└── test/ ← REQUIRED root folder
+├── README.md ← REQUIRED index
+├── [page-name].md ← one file per page (name from real page/route)
+├── [another-page-name].md
+└── ...
 ```
 
 **Naming `[page-name].md`:** derive from the real page only (e.g. route `/dashboard` → `dashboard.md`, screen title "Order Summary" → `order-summary.md`). Never use placeholder example names from docs as filenames.
@@ -174,19 +174,19 @@ Number sequentially per file: `001`, `002`, …
 
 Before writing TCs, decompose the requirement (from skill):
 
-1. Actors & permissions  
-2. Inputs (valid, invalid, boundaries)  
-3. Outputs & error paths  
-4. State & workflows  
-5. Integrations  
+1. Actors & permissions 
+2. Inputs (valid, invalid, boundaries) 
+3. Outputs & error paths 
+4. State & workflows 
+5. Integrations 
 6. Non-functionals (if specified)
 
 Generate **multiple cases per category** (not one example each):
 
-- **POS:** 5–10+ where scope allows  
-- **NEG:** 5–10+  
-- **EDGE:** 4–8+  
-- **LOG:** 4–8+  
+- **POS:** 5–10+ where scope allows 
+- **NEG:** 5–10+ 
+- **EDGE:** 4–8+ 
+- **LOG:** 4–8+ 
 
 ---
 
@@ -195,11 +195,11 @@ Generate **multiple cases per category** (not one example each):
 ```text
 ❌ Creating test/ before reading README.md + docs + code
 ❌ Writing TCs while features still not implemented
-❌ test/form.md + test/modal.md for same page     (split by widget — combine per page)
-❌ Generic names not from app (invented labels)   (use real page/route name)
-❌ test-cases/[page].md                          (wrong path — use root test/)
-❌ apps/web/tests/[page].md                      (markdown TCs not in app folder)
-❌ test/all-pages.md                             (one mega file — split page-wise)
+❌ test/form.md + test/modal.md for same page (split by widget — combine per page)
+❌ Generic names not from app (invented labels) (use real page/route name)
+❌ test-cases/[page].md (wrong path — use root test/)
+❌ apps/web/tests/[page].md (markdown TCs not in app folder)
+❌ test/all-pages.md (one mega file — split page-wise)
 ❌ Missing test/README.md
 ❌ Only 1 TC per category per page
 
@@ -207,7 +207,24 @@ Generate **multiple cases per category** (not one example each):
 ✅ Each page file lists all combined features in Metadata
 ```
 
----
+## Mandatory Deep Coverage Layers (MUST FOLLOW)
+
+Test cases MUST NOT be limited to UI only.
+
+For every feature, include coverage for:
+
+- **API Validation:** request/response, invalid inputs, status codes, auth/session
+- **Business Logic:** calculations, rules, operator precedence, edge values
+- **Backend Logic:** data save/update, session/history, duplicate prevention
+- **Error Handling:** API failure, network issues, timeout, recovery
+- **Accessibility:** keyboard flow, tab/focus, basic accessibility checks
+- **Input Consistency:** keyboard vs button, copy/paste, rapid actions
+- **System-Level:** end-to-end flow, refresh, session, data persistence
+
+### Rule
+Do not skip these layers even if feature is UI-based.
+
+--
 
 ## Checklist
 
@@ -221,3 +238,36 @@ Generate **multiple cases per category** (not one example each):
 - [ ] All four categories (POS, NEG, EDGE, LOG) with multiple TCs per page
 - [ ] Each TC has steps, expected result, and automation mapping when applicable
 - [ ] Footer references `test/[page-name].md`
+
+### Basic Coverage
+- [ ] All pages are covered
+- [ ] Each page has single combined file
+- [ ] POS, NEG, EDGE, LOG categories included
+
+### API Validation
+- [ ] API request validation cases added
+- [ ] Status code validation included
+
+### Business / Logic Validation
+- [ ] Core logic tested
+- [ ] Edge values covered
+
+### Backend Validation
+- [ ] Data/state scenarios covered
+- [ ] Duplicate request prevention tested
+
+### Error Handling
+- [ ] API failure scenarios covered
+- [ ] Recovery after failure tested
+
+### Accessibility
+- [ ] Keyboard-only flow tested
+- [ ] Focus/navigation tested
+
+### Input Consistency
+- [ ] Keyboard vs button consistency verified
+- [ ] Rapid actions handled
+
+### System-Level Validation
+- [ ] End-to-end flow validated
+- [ ] Data persistence verified
