@@ -9,6 +9,10 @@ Apply instructions in this order:
 1. Direct user request
 2. Repository rules in `.cursor/rules/`
 3. This `AGENTS.md`
+4. Do not change in docs folder and figma-tree.md file
+5. For the folder structure use for the our architecture skill and agnet.
+6. Create .gitignore file root folder
+7. All plan create plan/[name].md
 
 If rules conflict, follow the higher-priority source and document the decision.
 
@@ -18,7 +22,6 @@ If rules conflict, follow the higher-priority source and document the decision.
 - Workspace guide: `.cursor/README.md`
 - Reusable workflows: `.cursor/skills/`
 - Role prompts: `.cursor/agents/`
-
 
 ## 3) Core Behavior Rules
 
@@ -55,3 +58,4 @@ Before finalizing:
 - State assumptions when context is missing.
 - Report blockers immediately with concrete options.
 - Prefer direct implementation over long speculative planning unless asked.
+

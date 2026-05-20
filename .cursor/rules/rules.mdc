@@ -1,0 +1,360 @@
+---
+alwaysApply: true
+---
+## 🟨 JavaScript (ES6+) Standards
+
+### Key Rules (from javascript-stack.mdc)
+- ✅ Use async/await, not callbacks or promise chains
+- ✅ Implement proper error handling with try-catch
+- ✅ Use arrow functions for callbacks
+- ✅ Debounce/throttle event handlers
+- ✅ Memoize expensive computations
+- ✅ Clean up event listeners (prevent memory leaks)
+- ✅ Use named exports (tree-shakeable)
+- ✅ No global variable pollution
+- ✅ Avoid deeply nested code
+
+### Code Example Pattern
+```javascript
+// ✅ CORRECT
+const userEmail = "user@example.com";
+const MAX_RETRIES = 3;
+
+function calculateTotal(items) {
+  try {
+    return items.reduce((sum, item) => sum + item.price, 0);
+  } catch (error) {
+    console.error('Calculation failed:', error);
+    throw error;
+  }
+}
+
+async function fetchUser(id) {
+  try {
+    const response = await fetch(`/api/users/${id}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Fetch failed:', error);
+    throw error;
+  }
+}
+
+// ✗ NEVER DO THIS
+var oldStyle = 10;
+function badError() { return something.catch(); }
+fetch('/api').then(r => r.json());  // No error handling
+```
+
+---
+
+## ⚛️ React Standards
+
+### Key Rules (from react-stack.mdc)
+- ✅ Use functional components only (never class components)
+- ✅ Proper useEffect dependency arrays
+- ✅ Custom hooks for reusable logic
+- ✅ React.memo for expensive components
+- ✅ useMemo for expensive computations
+- ✅ useCallback for function props
+- ✅ Code splitting and lazy loading
+- ✅ Unique, stable keys in lists
+- ✅ Controlled form components
+- ✅ Error boundaries for error handling
+
+### Component Structure
+```javascript
+// ✅ CORRECT
+export function UserProfile({ userId, onClose }) {
+  const [user, setUser] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    fetchUser(userId)
+      .then(data => isMounted && setUser(data))
+      .finally(() => isMounted && setLoading(false));
+    return () => { isMounted = false; };
+  }, [userId]);
+
+  if (loading) return <Spinner />;
+  return <div>{user?.name}</div>;
+}
+
+// ✗ NEVER DO THIS
+class UserProfile extends React.Component { }  // Old pattern
+const list = items.map(i => <Item />);  // No key!
+const obj = {};  // New object every render
+```
+
+---
+
+## 🔲 Node.js & Express Standards
+
+### Key Rules (from nodejs-stack.mdc)
+- ✅ Middleware in correct order: security → parsing → auth → routes → errors
+- ✅ All async routes wrapped with asyncHandler
+- ✅ Error handling middleware for all errors
+- ✅ Input validation on all endpoints
+- ✅ Parameterized database queries
+- ✅ Structured JSON logging
+- ✅ Rate limiting enabled
+- ✅ Helmet.js security headers
+- ✅ CORS properly configured
+- ✅ Graceful shutdown implemented
+
+### Express Server Pattern
+```javascript
+// ✅ CORRECT MIDDLEWARE ORDER
+app.use(helmet());
+app.use(express.json());
+app.use(cors());
+app.use(loggingMiddleware);
+app.use(authenticate);
+app.use('/api', routes);
+app.use(errorHandler);  // LAST!
+
+// ✅ Async handler wrapper
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+// ✅ Use with routes
+app.get('/users/:id', asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  res.json(user);
+}));
+```
+
+---
+
+## 🗄️ MySQL Standards
+
+### Key Rules (from mysql-stack.mdc)
+- ✅ BIGINT for primary keys (not INT)
+- ✅ DECIMAL for money (not FLOAT)
+- ✅ Index foreign keys
+- ✅ Index frequently searched columns
+- ✅ Parameterized queries (prevent SQL injection)
+- ✅ No SELECT * (specify columns)
+- ✅ Pagination on large results
+- ✅ Use transactions for related operations
+- ✅ Backup strategy defined
+- ✅ Connection pooling enabled
+
+### Schema Pattern
+```sql
+-- ✅ CORRECT
+CREATE TABLE users (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_email CHECK (email LIKE '%@%.%')
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created ON users(created_at);
+
+-- ✗ NEVER DO THIS
+SELECT * FROM users;  -- No columns, no limit
+UPDATE users SET active = 1;  -- No WHERE clause!
+```
+
+---
+
+## 🗄️ PostgreSQL Standards
+
+### Key Rules (from postgresql-stack.mdc)
+- ✅ JSONB for semi-structured data
+- ✅ ENUM types for fixed value sets
+- ✅ Window functions for analytics
+- ✅ Full-text search for text columns
+- ✅ CTEs for complex queries
+- ✅ Materialized views for expensive queries
+- ✅ GIN indexes for JSONB/arrays
+- ✅ EXPLAIN ANALYZE for query optimization
+- ✅ Regular VACUUM ANALYZE maintenance
+- ✅ Parameterized queries (prevent SQL injection)
+
+### Advanced Pattern
+```sql
+-- ✅ CORRECT - JSONB with index
+CREATE TABLE users (
+  id BIGSERIAL PRIMARY KEY,
+  profile_data JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_profile ON users USING GIN(profile_data);
+
+-- ✅ Window function
+SELECT id, amount,
+  SUM(amount) OVER (ORDER BY date) as running_total
+FROM orders;
+
+-- ✗ NEVER DO THIS
+profile_data TEXT;  -- Use JSONB instead
+status VARCHAR(20);  -- Use ENUM instead
+```
+
+---
+
+## 🖥️ Electron Standards
+
+### Key Rules (from electron-stack.mdc)
+- ✅ Preload script for security (contextIsolation: true)
+- ✅ IPC for main/renderer communication
+- ✅ Content Security Policy headers
+- ✅ No nodeIntegration in renderer
+- ✅ Input validation on IPC handlers
+- ✅ File path validation (prevent traversal)
+- ✅ Logging for debugging
+- ✅ Auto-update mechanism
+- ✅ Graceful shutdown
+- ✅ Error handling for all IPC calls
+
+### Security Pattern
+```javascript
+// ✅ CORRECT - Main process
+new BrowserWindow({
+  webPreferences: {
+    preload: path.join(__dirname, 'preload.js'),
+    contextIsolation: true,      // ✅ Enable
+    enableRemoteModule: false,   // ✅ Disable
+    sandbox: true,               // ✅ Enable
+    nodeIntegration: false       // ✅ Disable
+  }
+});
+
+// ✅ IPC with validation
+ipcMain.handle('save-file', async (event, fileName, content) => {
+  if (!fileName || typeof content !== 'string') {
+    throw new Error('Invalid input');
+  }
+  const safePath = path.join(app.getPath('documents'), fileName);
+  if (!safePath.startsWith(app.getPath('documents'))) {
+    throw new Error('Invalid path');
+  }
+  await fs.promises.writeFile(safePath, content);
+  return { success: true };
+});
+
+// ✗ NEVER DO THIS
+nodeIntegration: true;  // DANGEROUS!
+contextIsolation: false;  // UNSAFE!
+ipcMain.handle('save', (event, path, content) => {  // No validation!
+  fs.writeFileSync(path, content);  // Path traversal risk!
+});
+```
+
+---
+
+## 🔗 Database Common Standards
+
+### Key Rules (from database-common-stack.mdc)
+- ✅ Universal naming: snake_case for tables/columns
+- ✅ Constraints: PK, FK, UNIQUE, CHECK
+- ✅ Transactions for related operations
+- ✅ Backup/restore strategy
+- ✅ Performance targets defined
+- ✅ Security: parameterized queries
+- ✅ Both MySQL and PostgreSQL covered
+- ✅ Database selection guidance
+
+### Pattern
+```sql
+-- ✅ CORRECT - Both MySQL & PostgreSQL
+CREATE TABLE orders (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  amount DECIMAL(10, 2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT fk_orders_user_id 
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+
+-- ✅ Parameterized queries
+SELECT * FROM orders WHERE user_id = ?;  -- Safe
+
+-- ✗ NEVER DO THIS
+SELECT * FROM orders WHERE user_id = '${userId}';  -- SQL injection!
+```
+
+---
+
+## 📊 Performance Requirements
+
+### Frontend Performance
+- **Bundle size**: < 100KB (gzipped)
+- **LCP** (Largest Contentful Paint): < 2.5s
+- **FID** (First Input Delay): < 100ms
+- **CLS** (Cumulative Layout Shift): < 0.1
+
+### Backend Performance
+- **API response**: < 200ms (p95)
+- **Database query**: < 100ms (p95)
+- **Error rate**: < 0.1%
+- **Uptime**: > 99.9%
+
+### Desktop Performance (Electron)
+- **Startup**: < 2 seconds
+- **Memory**: < 200MB baseline
+- **CPU (idle)**: < 5%
+
+---
+
+## ✅ Testing Requirements
+
+- **Minimum coverage**: 70%
+- **Unit tests**: For business logic
+- **Integration tests**: For workflows
+- **Test both**: Success and error paths
+- **Mock**: External dependencies
+
+---
+
+## 🔒 Security Checklist
+
+- [ ] Input validation on all boundaries
+- [ ] Parameterized database queries
+- [ ] No sensitive data in logs
+- [ ] HTTPS in production
+- [ ] Authentication/authorization
+- [ ] Rate limiting enabled
+- [ ] Security headers present
+- [ ] CORS properly configured
+- [ ] Error messages don't leak info
+- [ ] Dependencies kept up-to-date
+
+---
+
+## 📝 When in Doubt
+
+1. Check the specific standard file (javascript-stack.mdc, react-stack.mdc, etc.)
+2. Look for code examples (✓ correct, ✗ wrong)
+3. Follow the pattern shown
+4. Implement error handling
+5. Test thoroughly
+6. Consider performance
+7. Review security
+
+---
+
+## 🎯 Summary
+
+**Follow these in order of priority:**
+
+1. **Security** - Always validate input, use parameterized queries
+2. **Error Handling** - Try-catch everything, log errors
+3. **Performance** - Meet targets, optimize queries
+4. **Code Quality** - Clean code, proper naming, testing
+5. **Best Practices** - Follow patterns, avoid anti-patterns
+
+---
+
+**Generated code must comply with all standards in ./rules/ files.**
+
+Last updated: 2024-05-09
