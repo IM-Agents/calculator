@@ -11,8 +11,9 @@ export default function Demo() {
       {items.map((item) => (
 
         <li style={{ color: 'red' }}>{item}</li>
-        
+
       ))}
     </ul>
+
   ); 
 }
