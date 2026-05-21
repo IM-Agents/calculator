@@ -1,0 +1,182 @@
+---
+description: MySQL best practices for database design and optimization
+globs: **/*.sql, **/*.js, **/*.ts, **/**/*.sql, **/migrations/**/*.sql, **/migrations/**/*.js
+---
+
+# MySQL Best Practices
+
+## Database Design
+- Use proper normalization (3NF minimum)
+- Implement proper data types
+- Use proper constraints (PK, FK, UNIQUE, CHECK)
+- Design proper schema structure
+- Use proper naming conventions
+- Plan for scalability
+
+## Table Structure
+- Use BIGINT for primary keys (not INT)
+- Implement proper column data types
+- Use NOT NULL constraints where needed
+- Set proper default values
+- Add audit timestamps (created_at, updated_at)
+- Document table purposes
+
+## Naming Conventions
+- Use snake_case for table and column names
+- Use plural form for table names
+- Prefix boolean columns with is/has/should
+- Name foreign keys as parent_table_id format
+- Use idx_ prefix for indexes
+- Use uk_ prefix for unique constraints
+
+## Constraints and Validation
+- Use primary key on every table
+- Implement foreign key constraints properly
+- Use unique constraints for unique data
+- Add check constraints for data validation
+- Use NOT NULL for required fields
+- Document all constraints
+
+## Indexing Strategy
+- Index all foreign keys
+- Index frequently searched columns
+- Create composite indexes for common queries
+- Use proper index naming conventions
+- Avoid over-indexing
+- Monitor index performance
+
+## Query Optimization
+- Select specific columns (never SELECT *)
+- Implement proper pagination with LIMIT
+- Use proper JOIN syntax
+- Avoid functions in WHERE clauses
+- Implement proper subquery patterns
+- Use EXPLAIN to analyze queries
+
+## Data Types Selection
+- Use DECIMAL for monetary values (not FLOAT)
+- Use VARCHAR with proper length limits
+- Use TEXT for large text content
+- Use DATE for dates only
+- Use TIMESTAMP for date and time
+- Choose appropriate integer types
+
+## Transaction Management
+- Use transactions for related operations
+- Implement proper isolation levels
+- Use rollback for error handling
+- Handle deadlocks properly
+- Keep transactions short
+- Document transaction flows
+
+## Database Connections
+- Implement connection pooling
+- Use proper connection limits
+- Handle connection timeouts
+- Implement reconnection logic
+- Monitor active connections
+- Clean up connections properly
+
+## Performance Optimization
+- Analyze query execution plans
+- Optimize slow queries
+- Use proper caching strategies
+- Implement database indexing
+- Monitor query performance
+- Avoid N+1 query problems
+
+## Security
+- Use parameterized queries (prevent SQL injection)
+- Implement proper user permissions
+- Use proper password hashing
+- Encrypt sensitive data
+- Validate all input data
+- Implement access control
+
+## Backup and Recovery
+- Implement automated backups
+- Test backup restoration
+- Use proper backup retention
+- Document recovery procedures
+- Monitor backup success
+- Implement disaster recovery plan
+
+## Replication and Scaling
+- Use proper replication setup
+- Implement master-slave replication
+- Monitor replication lag
+- Handle replication failures
+- Use proper read replicas
+- Implement proper failover
+
+## Monitoring and Logging
+- Enable general query log for debugging
+- Monitor slow query log
+- Implement proper logging
+- Monitor database performance
+- Track resource usage
+- Set up performance alerts
+
+## Schema Changes
+- Use proper migration management
+- Test migrations in development
+- Implement zero-downtime migrations
+- Document all schema changes
+- Use proper versioning
+- Plan for rollbacks
+
+## Data Integrity
+- Use foreign key constraints
+- Validate data constraints
+- Implement proper checksums
+- Monitor data consistency
+- Handle orphaned records
+- Maintain referential integrity
+
+## Best Practices
+- Follow MySQL best practices
+- Use proper SQL syntax
+- Implement error handling
+- Use proper transactions
+- Document database structure
+- Keep performance metrics
+
+## Development Environment
+- Use consistent data types
+- Implement proper seeding
+- Use test data properly
+- Isolate test databases
+- Reset databases between tests
+- Document setup procedures
+
+## Production Considerations
+- Use proper production configurations
+- Implement proper monitoring
+- Set up alerting systems
+- Monitor disk space
+- Plan for growth
+- Document operational procedures
+
+## Code Standards
+- Use proper SQL formatting
+- Add comments for complex queries
+- Use meaningful table/column names
+- Follow consistent naming patterns
+- Document query purposes
+- Implement proper error messages
+
+## Common Pitfalls to Avoid
+- Never use SELECT * in production
+- Avoid storing sensitive data in plain text
+- Don't ignore foreign key constraints
+- Avoid large transactions
+- Don't skip proper indexing
+- Avoid hard-coded connection strings
+
+## Query Patterns
+- Use proper JOIN syntax
+- Implement proper filtering
+- Use proper grouping
+- Implement proper sorting
+- Use proper aggregation
+- Avoid unnecessary complexity

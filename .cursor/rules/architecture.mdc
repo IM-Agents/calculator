@@ -1,0 +1,335 @@
+---
+description: Monorepo architecture — webpack, root packageManager, .env PORT/PUBLIC_PATH, preview
+alwaysApply: true
+---
+
+# Architecture Rules
+
+Apply when scaffolding or extending monorepos. Follow `.cursor/skills/architecture/` and `references/react-node-structure.md` for full layouts.
+
+## 1. Frontend — Webpack Only
+
+- **MUST** use **webpack 5** as the frontend build tool (`webpack`, `webpack-cli`, `webpack-dev-server`).
+- **MUST NOT** use Vite, Parcel, Rollup, esbuild-only SPA tooling, Create React App, or Next.js for new frontends.
+- React SPAs: `webpack.config.js` or `webpack.config.ts` in `apps/web/` (or equivalent app folder).
+- Node APIs bundled for deploy: `webpack` + `webpack-node-externals` (see architecture skill Variant F/G).
+
+```json
+// apps/web/package.json — required scripts
+{
+  "scripts": {
+    "dev": "webpack serve --mode development",
+    "build": "webpack --mode production"
+  }
+}
+```
+
+### CSS Modules (css-loader v7)
+
+When `apps/web` uses **CSS Modules** (`*.module.css`) with `import styles from "./X.module.css"`:
+
+- **MUST** pin `"css-loader": "^7.1.2"` (or newer v7) in `apps/web/package.json`.
+- **MUST** set `modules.namedExport: false` in the webpack css-loader rule (for `.module.css` or `modules.auto: /\.module\.css$/i`). css-loader v7 defaults `namedExport: true`, so the default export is CSS for `style-loader`, **not** the class map — causes `Cannot read properties of undefined (reading '…')` at module load.
+- **MUST** name scoped files `Component.module.css`; global styles stay in `index.css` (no `.module` suffix).
+- Full webpack snippets: `skills/architecture/references/react-node-structure.md` — **CSS Modules + css-loader v7**.
+
+## 2. Root Folder & `packageManager` (Required)
+
+- **MUST** create or update the **root** `package.json` (monorepo workspace root, not only app-level).
+- **MUST ALWAYS** include `"packageManager"` in root `package.json` — never omit it on new or updated repos.
+
+```json
+{
+  "name": "my-monorepo",
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build"
+  }
+}
+```
+
+| Manager | `packageManager` value (use exact installed version) |
+|---------|--------------------------------------------------------|
+| npm | `"packageManager": "npm@10.9.2"` |
+| pnpm | `"packageManager": "pnpm@9.15.0"` |
+| yarn (Berry) | `"packageManager": "yarn@4.5.0"` |
+| bun | `"packageManager": "bun@1.1.0"` |
+
+- Pin the **exact** version (e.g. `npm@10.9.2`, not `npm@10`) so Corepack and CI use the same tool.
+- When switching managers, update `"packageManager"` in the same change as lockfile / workspace config.
+- **MUST NOT** ship a root `package.json` without `"packageManager"`.
+- **npm / yarn classic / bun**: declare `"workspaces": ["apps/*", "packages/*"]` on root `package.json`.
+- **pnpm**: add root `pnpm-workspace.yaml`; root `package.json` omits `"workspaces"` but **still requires** `"packageManager"`.
+- Root scripts orchestrate Turbo: `dev`, `build`, `lint`, `test`, `preview`, `preview:stop` via `turbo run …` or `node scripts/…`.
+- **`turbo.json` `build.env`**: list `PUBLIC_PATH`, `API_BASE_URL`, `NODE_ENV`, `PORT`, `API_PORT`, `WEB_PORT` so cache invalidates when they change. See `turbo-env-cache.mdc`.
+- After changing `PUBLIC_PATH` on the CLI: `npm run build -- --force` then `npm run preview`.
+
+## 3. Root `.env` — PORT, PUBLIC_PATH, API (Required)
+
+All port and path configuration **MUST** come from the **root** `.env` (see architecture skill `react-node-structure.md` — Global Preview System). Commit `.env.example`; gitignore `.env`.
+
+### Root `.env.example` (required variables)
+
+```bash
+# Single public-facing port (reverse proxy)
+PORT=8080
+
+# Asset + route prefix (/ for root, /myapp/ for subpath deploy) — path only, not a full URL
+PUBLIC_PATH=/
+
+# Internal app ports (preferred defaults — preview auto-picks free ports if busy)
+WEB_PORT=3001
+API_PORT=4000
+
+# Base URL for React API calls (preview rewrites when API_PORT changes)
+API_BASE_URL=http://localhost:4000
+
+NODE_ENV=production
+```
+
+### Wiring rules
+
+| Variable | Used by |
+|---|---|
+| `PORT` | `scripts/proxy.js` — single entry URL `http://localhost:{PORT}{PUBLIC_PATH}` |
+| `PUBLIC_PATH` | webpack `output.publicPath`, proxy static routes, SPA fallback |
+| `API_PORT` | `preview-start.js` — probes `127.0.0.1`; picks next free port from `.env` preferred value (default `4000`) |
+| `WEB_PORT` | webpack dev only (not used by production preview) |
+| `API_BASE_URL` | Server-side / direct API access only. **Browser** `__API_BASE_URL__` in prod **MUST** be `PUBLIC_PATH` (e.g. `/qa/hello`), not `http://localhost:{API_PORT}` — so fetches hit `/{PUBLIC_PATH}/api/...` through nginx + project proxy |
+
+### Preview `API_PORT` auto-assignment (Required)
+
+`scripts/preview-start.js` **MUST** resolve a free **`API_PORT`** on `127.0.0.1` before spawning `apps/api` and `scripts/proxy.js`. Do not assume `.env` `API_PORT` is free.
+
+| Port var | Default preferred | Auto-probe in `preview-start.js` | Used by |
+|----------|-------------------|----------------------------------|---------|
+| `API_PORT` | `4000` | **Yes** — scan upward to `9999` if busy | `apps/api` listen; `proxy.js` → `target` |
+| `PORT` | `8080` | **Yes** — same probe as `API_PORT` (do not use `4001` in Docker; nginx uses it) | `scripts/proxy.js` listen; IM backend forwards `/qa/{name}` here |
+| `WEB_PORT` | `3001` | No | webpack dev only |
+
+**Algorithm** (inline in `scripts/preview-start.js` — do not require a separate `portUtils` package unless shared across repos):
+
+1. Capture CLI `PUBLIC_PATH`, `PORT`, `API_PORT` **before** `loadEnv()`, restore after (CLI wins over `.env`).
+2. `loadEnv({ rootDir })` — read preferred `API_PORT` from root `.env` / `.env.example`.
+3. `findAvailablePort(preferredPort)` and `findAvailablePort(preferredApiPort)` — probe `127.0.0.1`; if busy, scan upward to `9999`.
+4. Build shell env prefix: `PUBLIC_PATH='…' PORT={PORT} API_PORT={API_PORT} NODE_ENV=production` (escape single quotes in `PUBLIC_PATH`).
+5. Spawn **api** and **proxy** via `spawn("sh", ["-c", `${envPrefix} ${shellCmd}`], …)` — **do not** pass a spawn `env` object; inline prefix wins over parent `.env`.
+6. Write `{root}/.preview.ports` (`PORT=`, `API_PORT=`) and `{root}/.preview.pids`; log when bumped: `[preview] PORT 8080 in use → 8081`.
+7. Log ready: `[preview] Ready → proxy http://127.0.0.1:{PORT}{PUBLIC_PATH} | API http://127.0.0.1:{API_PORT}`.
+8. **Docker / IM platform**: project `PORT` is internal (`8080+`). Public URL: `http://localhost:4001/qa/{name}/` via nginx — never bind preview proxy to `4001`.
+
+- **MUST** probe **both** `PORT` and `API_PORT` on `127.0.0.1` before spawn.
+- **MUST** pass resolved `PUBLIC_PATH`, `PORT`, and `API_PORT` to both children via the shell prefix (same values for api + proxy).
+- **MUST NOT** start preview assuming `.env` ports are free.
+- Full script pattern: `skills/architecture/references/react-node-structure.md` — Global Preview System.
+
+- **webpack**: `require("./src/config/env")` only — set `output.publicPath` from validated `env.PUBLIC_PATH` (never raw `dotenv` in webpack).
+- **API calls**: inject `__API_BASE_URL__` with `DefinePlugin` (dev: `"/api"` via devServer proxy; prod: `PUBLIC_PATH` when subpath deploy).
+- **preview scripts** (`preview-start.js`, `preview-stop.js`, `proxy.js`): use `loadEnv({ rootDir })` from `@repo/config/loadEnv`; capture CLI `PUBLIC_PATH` / `PORT` / `API_PORT` **before** `loadEnv()` and restore after so shell/CI wins.
+- **API server**: read `API_PORT` from `@repo/config/env` (Joi default `4000`); never hardcode ports in source.
+- Add to root `.gitignore`: `.env`, `.preview.pids`, `.preview.ports`, `preview-*.log`.
+
+## 4. Preview Scripts (Required)
+
+Every monorepo **MUST** expose production preview at the **root** so skills and agents can build, run, and verify the full flow on one port.
+
+| Package manager | Root scripts |
+|---|---|
+| npm | `"preview": "turbo run build && node scripts/preview-start.js"`, `"preview:stop": "node scripts/preview-stop.js"` |
+| pnpm | same script bodies; run as `pnpm preview` / `pnpm preview:stop` |
+
+- Implement `scripts/preview-start.js`, `scripts/preview-stop.js`, and `scripts/proxy.js` from `react-node-structure.md` → **Reference — preview scripts**.
+- Add `.preview.pids` and `.preview.ports` to `.gitignore`.
+
+### 4.1 Preview runs in background (Required)
+
+`npm run preview` / `pnpm preview` **MUST return to the shell** — do not block the terminal on the proxy or API process.
+
+- **API** (and **web** if it has its own server): spawn with `detached: true`, `stdio: "ignore"`, then `proc.unref()`.
+- **Proxy** (`scripts/proxy.js`): start as the **last step**, also **in background** (same detached pattern) — not `require("./proxy")` in the foreground.
+- Write every background PID to `.preview.pids` (API, web if any, proxy).
+- Resolve free `PORT` and `API_PORT` before spawn; pass both via shell env prefix (not spawn `env`).
+- Redirect stdout/stderr to `preview-{label}.log`; `preview-start.js` exits after spawn (URLs printed, `main()` resolves).
+- Full implementations: `react-node-structure.md` → **Reference — preview scripts**.
+
+- **MUST NOT** use `stdio: "inherit"` or blocking `require("./proxy")` for the final server — that prevents background preview.
+- `preview:stop` kills all PIDs in `.preview.pids` and frees ports from `.preview.ports` (fallback: `.env`).
+
+### 4.2 Reverse proxy — API path routing (Required)
+
+`scripts/proxy.js` **MUST** forward `/api/*` to the API with the `/api` prefix intact.
+
+**Do not** mount the proxy with `app.use('/api', createProxyMiddleware(...))`. Express strips the mount path before the middleware runs, so `/api/v1/history` becomes `/v1/history` upstream and the API returns `404 Not found`.
+
+**Do** gate API traffic explicitly (SPA fallback must not serve HTML for `/api/*`). Full `proxy.js`: `react-node-structure.md` → **Reference — preview scripts**.
+
+| `PUBLIC_PATH` | Incoming request | Proxied to API |
+|---|---|---|
+| `/` | `/api/v1/history` | `http://localhost:{API_PORT}/api/v1/history` |
+| `/myapp` | `/myapp/api/v1/history` | `http://localhost:{API_PORT}/api/v1/history` (via `pathRewrite`) |
+
+- **MUST** verify proxied routes after preview start: `curl -sf "http://localhost:{PORT}/api/health"` and at least one `/api/v1/*` route (not only direct `API_PORT`).
+- webpack devServer `proxy` with `context: ["/api"]` is unaffected (webpack does not strip the mount path).
+
+### 4.3 Verify preview after work is done (Required)
+
+When implementation is complete, **before** considering the task done:
+
+1. Run `npm run preview` or `pnpm preview` (build + background start).
+2. Wait briefly for processes to bind (e.g. 2–5s).
+3. **Health checks** (retry with backoff if needed):
+
+| Check | URL | Pass criteria |
+|-------|-----|----------------|
+| **API health** | `http://localhost:{API_PORT}/api/health` or `http://localhost:{PORT}{PUBLIC_PATH}/api/health` | HTTP `200`, body indicates ok |
+| **Frontend health** | `http://localhost:{PORT}{PUBLIC_PATH}` | HTTP `200`, HTML/SPA loads (not 502/404 on `/`) |
+
+4. If **either check fails** → read logs, fix code/config/build, run `preview:stop`, then repeat from step 1.
+5. If **both pass** → work verified; run `npm run preview:stop` or `pnpm preview:stop` to clean up.
+
+```bash
+# Example verification (adjust PORT / PUBLIC_PATH from .env)
+curl -sf "http://localhost:8080/api/health" || curl -sf "http://localhost:4000/api/health"
+curl -sf -o /dev/null -w "%{http_code}" "http://localhost:8080/"
+```
+
+- **MUST** expose `GET /api/health` (or `/health`) on the API app for preview checks.
+- **MUST** fix issues until both API and frontend health pass — do not skip verification.
+- **MUST** always run `preview:stop` after verification (success or abandoned session) so ports are freed.
+
+### Agent / skill flow
+
+```
+build → preview (background) → health API → health frontend
+  → fail? → preview:stop → fix → repeat
+  → pass? → preview:stop → done
+```
+
+## 5. Figma Design — `docs/figma-tree.md` (Frontend Only)
+
+`docs/figma-tree.md` is the **frontend design index only**. It lists Figma file keys, screen links, node IDs, breakpoints, and routes — nothing else.
+
+### Purpose & scope
+
+| In scope | Out of scope |
+|---|---|
+| Frontend UI screens, states, responsive breakpoints | Backend APIs, database, server config |
+| Links and node IDs already given in the project brief / PRD | Inventing Figma URLs not backed by the source file |
+| Design tokens, component inventory, page map | Rewriting `docs/` requirements or test specs |
+
+- **MUST** treat every Figma URL in `figma-tree.md` as the canonical target for that screen — implement frontend to match those frames.
+- **MUST NOT** use `figma-tree.md` for non-UI work (API design, migrations, infra).
+- **MUST NOT** delete or rewrite `figma-tree.md` during code-only tasks; update it only in an explicit **design phase** (or when the user asks). During implementation, **read** it — do not reshuffle links.
+
+### Figma MCP (required before design & before frontend)
+
+Connect via `.cursor/mcp.json` (`figma` server). Load `.cursor/skills/figma-design/SKILL.md` (and `figma-use` before any `use_figma` write).
+
+| Step | MCP tool | Purpose |
+|------|----------|---------|
+| 1 | `whoami` | Confirm Figma MCP is authenticated |
+| 2 | `get_metadata` | Verify `fileKey` and listed `node-id`s exist |
+| 3 | `get_design_context` / `get_screenshot` | Inspect layout, spacing, typography per screen link |
+| 4 | `get_variable_defs` / `search_design_system` | Reuse tokens and library components when available |
+| 5 | `use_figma` (write) | Create or update components and pages (requires write access) |
+
+- **MUST** verify each link in `figma-tree.md` with MCP before building or updating that screen in code.
+- If MCP is read-only, document the blocker in `figma-tree.md` and implement from verified screenshots/metadata — do not fabricate node IDs.
+
+### Discover first — do not assume Desktop / Tablet / Mobile folders (Required)
+
+**Before** creating or listing breakpoint rows, inspect what already exists:
+
+1. Check whether `docs/figma-tree.md` exists and read listed links only — **do not** invent Desktop/Tablet/Mobile rows if they are not there.
+2. Use Figma MCP (`get_metadata`, `get_design_context`) on the provided `fileKey` / `node-id` to see which frames, pages, and breakpoints already exist in the file.
+3. Record only what is verified — one link, many links, or none.
+
+| What the project gives | Agent action |
+|---|---|
+| **No `figma-tree.md` yet** | Create it in design phase with only verified MCP links from the source Figma file |
+| **Single desktop (or one) frame link** | Treat desktop as **source of truth**; **auto-create** Tablet + Mobile layouts from it (Figma `use_figma` when write access, otherwise responsive CSS in `apps/web`) |
+| **Desktop + Tablet + Mobile links already listed** | Use each link as-is — do not duplicate or replace |
+| **Only marketing / reference frames** | Map the closest reference frame; note in `figma-tree.md` if app screens are code-derived |
+
+- **MUST NOT** require a pre-built “Desktop / Tablet / Mobile” folder structure in Figma or in `figma-tree.md` when the brief only supplies one design.
+- **MUST** derive responsive behavior from the desktop (or primary) frame when tablet/mobile links are missing: stack columns, shrink keypad, collapse side panels, touch targets ≥ 44px, breakpoints aligned with `test/*` or PRD.
+- After auto-creating Figma frames (write MCP), append new `node-id` URLs to `figma-tree.md` in the design phase only.
+
+### Design order — components first, then pages (Required)
+
+**Do not** jump straight to full-page frames. Follow this order:
+
+```
+0. Discover            → read figma-tree.md + MCP metadata (what links/breakpoints exist?)
+1. Tokens & foundations → colors, type, spacing (from Figma variables or reference frames)
+2. Atomic components    → Button, Input, Display, Key, etc. (Figma components)
+3. Composite components → Keypad, HistoryPanel, Shell (built from atoms)
+4. Primary page frame   → desktop (or the single frame link provided)
+5. Responsive variants  → tablet + mobile auto-derived ONLY if not already in Figma / figma-tree
+6. States (optional)    → error / empty / loading when required by PRD
+7. Update figma-tree.md → list only verified or newly created links (design phase only)
+8. Frontend code        → apps/web; CSS/media queries for breakpoints missing in Figma
+```
+
+| Phase | Figma | Code |
+|-------|-------|------|
+| Components | Create/reuse **components** first | `apps/web/src/components/` mirrors component set |
+| Primary page | Build from the **given** desktop (or sole) link | Base layout at ≥1024px (or PRD default) |
+| Responsive | Add tablet/mobile frames only when absent | `@media` / layout rules for 768px and &lt;768px |
+| States | Error / empty / loading when in scope | CSS/state classes |
+
+- **MUST** create shared Figma **components** before composing **page** frames.
+- Page frames **MUST** instance components (not detached one-off rectangles) when creating in Figma.
+- Responsive pages are **generated from the primary design**, not copied from a template tree.
+
+### `figma-tree.md` structure (minimum)
+
+List **only** screens that exist or were created — omit Tablet/Mobile lines when not applicable.
+
+```markdown
+# Figma Navigation Tree — {App Name}
+**File Key:** `{fileKey}`
+**Prototype Base URL:** https://www.figma.com/design/{fileKey}
+
+## Navigation Tree
+[ENTRY] / → Screen name
+├── [SCREEN] Screen — Desktop   → figma.com/design/...?node-id=...   ← source (required when provided)
+├── [SCREEN] Screen — Tablet    → ...   ← optional; add only after MCP verify or agent create
+├── [SCREEN] Screen — Mobile    → ...   ← optional; add only after MCP verify or agent create
+└── [STATE]  Screen — Error     → ...   ← optional; PRD-driven
+
+## Responsive note
+<!-- When only Desktop link exists: tablet/mobile implemented in code; Figma variants TBD -->
+
+## App routes ↔ test files
+| Route | Context | Test file |
+```
+
+- Each listed line **MUST** have a full Figma URL with `node-id` verified via MCP (or marked as code-only responsive).
+- **MUST NOT** paste placeholder `...` rows for breakpoints that do not exist yet.
+- Map every entry to a frontend route and, when tests exist, a `test/*.md` file.
+
+## Checklist Before Finishing Scaffold
+
+- [ ] Frontend app uses webpack (no alternate bundlers)
+- [ ] css-loader v7 + CSS Modules: `namedExport: false` on webpack css-loader rule; `*.module.css` + `import styles from "…"`
+- [ ] Root `package.json` exists with **`"packageManager"` always set** (exact manager@version)
+- [ ] Root `.env.example` with `PORT`, `PUBLIC_PATH`, `WEB_PORT`, `API_PORT`, `API_BASE_URL`
+- [ ] webpack reads root `.env` (`publicPath`, `DefinePlugin` for `__API_BASE_URL__`)
+- [ ] Root `preview` and `preview:stop` scripts + `scripts/preview-*.js` + `proxy.js` present
+- [ ] `preview-start.js` probes free `PORT` and `API_PORT` on `127.0.0.1`; passes both via shell env prefix (not spawn `env`)
+- [ ] `proxy.js` gates `/api` with explicit matcher (not `app.use('/api', …)` mount); listens on `127.0.0.1`
+- [ ] Preview starts API + proxy **in background**; `preview` command returns without blocking
+- [ ] API `/api/health` exists; preview verified (API + frontend health pass)
+- [ ] `preview:stop` run after verification to free ports
+- [ ] `turbo.json` at root with `build.env` for `PUBLIC_PATH`, `API_BASE_URL`, `NODE_ENV`; apps under `apps/*`, shared code under `packages/*`
+- [ ] Checked `docs/figma-tree.md` + Figma MCP first — did not assume Desktop/Tablet/Mobile unless links exist
+- [ ] `docs/figma-tree.md` exists — frontend-only index; only verified links (no placeholder breakpoint rows)
+- [ ] If only desktop (or one frame) was given: tablet + mobile responsive layout auto-created (Figma and/or CSS)
+- [ ] Figma MCP used to verify `fileKey` and each listed `node-id` before frontend work
+- [ ] Figma **components** created before **page** frames (atoms → composites → primary page → responsive variants)
+- [ ] `figma-tree.md` lists only real screens/states with URL + node ID (or notes code-only responsive)
+- [ ] Frontend matches primary Figma link + responsive rules at 768px / mobile breakpoints
